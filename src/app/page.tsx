@@ -1,4 +1,3 @@
-import Image from 'next/image';
 import Link from 'next/link';
 import { ArrowRight, BadgeCheck, ExternalLink, LockKeyhole, SlidersHorizontal } from 'lucide-react';
 import { buildPageMetadata } from '@/lib/seo';
@@ -26,7 +25,7 @@ const toolListStructuredData = {
 };
 
 export default function Home(){return <Page><main><script type="application/ld+json" dangerouslySetInnerHTML={{__html:JSON.stringify(toolListStructuredData)}}/>
-  <section className="hero ajnpdf-hero"><div className="simple-hero-inner"><Image className="hero-brand-logo" src="/brand/ajn-buzz-logo.png" alt="AJN Buzz" width={92} height={92} priority/><div className="eyebrow">AJN Buzz · Image Tools</div><h1>Image tools that do the actual work.</h1><p className="lead">Compress toward an exact KB/MB target, resize, crop, convert and edit images directly in focused browser tools.</p><div className="hero-actions"><Link className="btn primary" href="/tools/compress">Compress an image <ArrowRight size={16}/></Link><Link className="btn" href="/tools">Browse image tools</Link></div></div></section>
+  <section className="hero ajnpdf-hero"><div className="simple-hero-inner"><div className="eyebrow">AJN Buzz · Image Tools</div><h1>Image tools that do the actual work.</h1><p className="lead">Compress toward an exact KB/MB target, resize, crop, convert and edit images directly in focused browser tools.</p><div className="hero-actions"><Link className="btn primary" href="/tools/compress">Compress an image <ArrowRight size={16}/></Link><Link className="btn" href="/tools">Browse image tools</Link></div></div></section>
 
   <section className="quick-tools"><div className="quick-tools-inner">{quick.map(tool=><Link href={`/tools/${tool.id}`} key={tool.id}><span className={`quick-icon quick-${tool.category.toLowerCase()}`}><ToolIcon name={tool.icon} size={19}/></span><span>{tool.shortName}</span></Link>)}</div></section>
 
