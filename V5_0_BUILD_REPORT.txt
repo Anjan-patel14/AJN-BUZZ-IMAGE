@@ -1,0 +1,29 @@
+AJN BUZZ IMAGE V5.0 — SEO + ADS + IMAGE PRODUCTION
+
+IMPLEMENTED
+- Exact Google seller declaration:
+  google.com, pub-4495802176396975, DIRECT, f08c47fec0942fa0
+- /ads.txt and /app-ads.txt
+- AdSense metadata account: ca-pub-4495802176396975
+- No invented ad-unit slot IDs; HOME/TOOL slots remain configurable by environment
+- Production canonical URL defaults to https://ajn.buzz
+- Registry-driven sitemap.xml with hourly revalidation
+- robots.txt sitemap + crawl exclusions
+- Web manifest
+- Canonical/OpenGraph/Twitter metadata
+- WebSite + SoftwareApplication JSON-LD
+- Home ItemList JSON-LD
+- Per-tool WebApplication JSON-LD
+- Per-tool explicit SEO keyword sets
+- Exactly 11 image workflows retained
+- Real numeric KB/MB target compressor retained
+- All tool IDs explicitly handled; unsupported IDs fail closed
+- Source pending-marker gate for TODO/FIXME/PLACEHOLDER
+- Local acceptance validates seller files, sitemap, robots, 11 tools, removed routes and API readiness
+- .gitattributes + *.tsbuildinfo ignore for clean Git behavior
+
+NOT INVENTED
+- AdSense ad-unit slot IDs were not supplied, so no fake slot IDs were added.
+
+PRODUCTION GATE
+START_LOCAL.ps1 performs npm install when needed, npm verify, tsc --noEmit, next build, localhost startup and runtime route acceptance on Windows.

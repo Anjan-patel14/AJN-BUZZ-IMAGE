@@ -1,0 +1,26 @@
+{
+  "name": "ajn-buzz-image",
+  "version": "5.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev -p 9010",
+    "build": "next build",
+    "start": "next start -p 9010",
+    "typecheck": "tsc --noEmit",
+    "verify": "node scripts/verify.mjs",
+    "check": "npm run verify && npm run typecheck && npm run build"
+  },
+  "dependencies": {
+    "next": "15.5.23",
+    "react": "19.2.0",
+    "react-dom": "19.2.0",
+    "jszip": "3.10.1",
+    "lucide-react": "1.33.0"
+  },
+  "devDependencies": {
+    "@types/node": "20.17.0",
+    "@types/react": "19.0.0",
+    "@types/react-dom": "19.0.0",
+    "typescript": "5.7.3"
+  }
+}
