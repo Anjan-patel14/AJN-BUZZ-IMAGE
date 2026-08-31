@@ -7,6 +7,20 @@ import { IMAGE_TOOLS, TOOL_CATEGORIES, type ToolCategory, type ToolId } from '@/
 import { favoriteTools, recentTools, toggleFavorite } from '@/lib/tool-state';
 import { ToolIcon } from './ToolIcon';
 
+const helperText: Record<ToolId, string> = {
+  compress: 'Reduce file size',
+  resize: 'Change dimensions',
+  crop: 'Trim image',
+  convert: 'Change format',
+  'photo-editor': 'Adjust photo',
+  watermark: 'Add watermark',
+  'background-remover': 'Remove flat background',
+  upscale: 'Enlarge image',
+  rotate: 'Rotate or flip',
+  'convert-to-jpg': 'Convert to JPG',
+  'jpg-to-png': 'Convert JPG',
+};
+
 function tone(category: ToolCategory){
   if(category==='Edit') return {card:'ajn-card-green',icon:'ajn-icon-green'};
   if(category==='Convert') return {card:'ajn-card-red',icon:'ajn-icon-red'};
@@ -21,8 +35,13 @@ export function ToolCatalog({ mode = 'all' }: { mode?: 'all' | 'favorites' | 're
 
   useEffect(() => {
     const sync = () => { setFavorites(favoriteTools()); setRecent(recentTools()); };
-    sync(); window.addEventListener('storage', sync); window.addEventListener('ajn-buzz-local-state', sync);
-    return () => { window.removeEventListener('storage', sync); window.removeEventListener('ajn-buzz-local-state', sync); };
+    sync();
+    window.addEventListener('storage', sync);
+    window.addEventListener('ajn-buzz-local-state', sync);
+    return () => {
+      window.removeEventListener('storage', sync);
+      window.removeEventListener('ajn-buzz-local-state', sync);
+    };
   }, []);
 
   const tools = useMemo(() => {
@@ -38,21 +57,57 @@ export function ToolCatalog({ mode = 'all' }: { mode?: 'all' | 'favorites' | 're
 
   return <>
     <div className="catalog-surface ajn-glass-card">
-      <div className="catalog-heading"><div><div className="eyebrow">Image tools</div><h2>Choose what you want to do.</h2></div><span className="catalog-accent" aria-hidden="true"/></div>
+      <div className="catalog-heading">
+        <h2>Choose a tool</h2>
+        <span className="catalog-accent" aria-hidden="true"/>
+      </div>
       <div className="catalog-toolbar">
-        <label className="searchbox"><Search size={17}/><input value={query} onChange={event => setQuery(event.target.value)} placeholder="Search image tools" /></label>
-        <div className="category-tabs" aria-label="Tool categories">{TOOL_CATEGORIES.map(item => <button key={item} className={category === item ? 'active' : ''} onClick={() => setCategory(item)}>{item === 'All' ? 'All Image Tools' : item}</button>)}</div>
+        <label className="searchbox">
+          <Search size={17}/>
+          <input value={query} onChange={event => setQuery(event.target.value)} placeholder="Search tools" />
+        </label>
+        <div className="category-tabs" aria-label="Tool categories">
+          {TOOL_CATEGORIES.map(item => (
+            <button key={item} className={category === item ? 'active' : ''} onClick={() => setCategory(item)}>
+              {item === 'All' ? 'All' : item}
+            </button>
+          ))}
+        </div>
       </div>
     </div>
+
     {tools.length ? <div className="tool-grid">
-      {tools.map((tool,index) => {const t=tone(tool.category);return <article className={`tool-card ajn-tool-card-pro ${t.card}`} key={tool.id}>
-        <button className={`favorite-button ${favorites.includes(tool.id) ? 'active' : ''}`} aria-label={favorites.includes(tool.id) ? `Remove ${tool.name} from favorites` : `Add ${tool.name} to favorites`} onClick={() => toggleFavorite(tool.id)}><Heart size={16} fill={favorites.includes(tool.id) ? 'currentColor' : 'none'}/></button>
-        <Link href={`/tools/${tool.id}`} className="tool-card-link" prefetch={false}>
-          <div className="tool-card-top"><div className={`tool-icon ${t.icon}`}><ToolIcon name={tool.icon}/></div><span className="tool-arrow"><ArrowUpRight size={16}/></span></div>
-          <div className="tool-card-meta"><span>{tool.category}</span>{tool.badge ? <b>{tool.badge}</b> : null}</div>
-          <h3>{tool.name}</h3><p>{tool.description}</p><div className="tool-formats">{tool.formats}</div>
-        </Link>
-      </article>})}
-    </div> : <div className="empty-state ajn-v4-card ajn-card-blue"><Search size={28}/><h3>{mode === 'favorites' ? 'No favorite tools yet' : mode === 'recent' ? 'No recent tools yet' : 'No matching image tool'}</h3><p>{mode === 'favorites' ? 'Tap the heart on any tool card to keep it here.' : mode === 'recent' ? 'Open a tool and it will appear here automatically.' : 'Try compress, resize, crop, convert or edit.'}</p></div>}
+      {tools.map(tool => {
+        const t = tone(tool.category);
+        return <article
+          className={`tool-card ajn-tool-card-pro ${t.card}`}
+          style={{ minHeight: 168 }}
+          key={tool.id}
+        >
+          <button
+            className={`favorite-button ${favorites.includes(tool.id) ? 'active' : ''}`}
+            aria-label={favorites.includes(tool.id) ? `Remove ${tool.name} from favorites` : `Add ${tool.name} to favorites`}
+            onClick={() => toggleFavorite(tool.id)}
+          >
+            <Heart size={16} fill={favorites.includes(tool.id) ? 'currentColor' : 'none'}/>
+          </button>
+
+          <Link href={`/tools/${tool.id}`} className="tool-card-link" prefetch={false} style={{ padding: 16 }}>
+            <div className="tool-card-top">
+              <div className={`tool-icon ${t.icon}`} style={{ marginBottom: 8 }}>
+                <ToolIcon name={tool.icon}/>
+              </div>
+              <span className="tool-arrow"><ArrowUpRight size={16}/></span>
+            </div>
+            <h3 style={{ marginTop: 6 }}>{tool.name}</h3>
+            <p style={{ marginBottom: 0 }}>{helperText[tool.id]}</p>
+          </Link>
+        </article>;
+      })}
+    </div> : <div className="empty-state ajn-v4-card ajn-card-blue">
+      <Search size={28}/>
+      <h3>{mode === 'favorites' ? 'No favorites yet' : mode === 'recent' ? 'No recent tools yet' : 'No matching tool'}</h3>
+      <p>{mode === 'favorites' ? 'Tap a heart to save a tool.' : mode === 'recent' ? 'Open a tool and it appears here.' : 'Try compress, resize, crop or convert.'}</p>
+    </div>}
   </>;
 }

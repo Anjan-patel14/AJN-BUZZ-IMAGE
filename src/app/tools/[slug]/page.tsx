@@ -1,6 +1,5 @@
 import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
-import { BadgeCheck, HardDrive, Images } from 'lucide-react';
 import { Page } from '@/components/Shell';
 import { AdSlot } from '@/components/AdSlot';
 import { ImageEditor } from '@/components/ImageEditor';
@@ -61,30 +60,25 @@ export default async function ToolPage({
 
   return (
     <Page>
-      <main className="section tool-page">
+      <main className="section tool-page" style={{ paddingTop: 24 }}>
         <div className="container">
           <script
             type="application/ld+json"
             dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredData) }}
           />
-          <div className="tool-hero">
+
+          <div className="tool-hero" style={{ marginBottom: 16 }}>
             <div className={`tool-icon tool-icon-${tool.category.toLowerCase()} large`}>
-              <ToolIcon name={tool.icon} size={31} />
+              <ToolIcon name={tool.icon} size={28} />
             </div>
             <div>
-              <div className="eyebrow">
-                {tool.category}
-                {tool.badge ? ` · ${tool.badge}` : ''}
-              </div>
-              <h1 className="tool-title">{tool.name}</h1>
-              <p className="lead">{tool.description}</p>
-              <div className="tool-trust">
-                <span><HardDrive size={15} /> Browser processing</span>
-                <span><Images size={15} /> {tool.id === 'compress' ? 'Current selected image' : 'Multiple images'}</span>
-                <span><BadgeCheck size={15} /> {tool.formats}</span>
-              </div>
+              <div className="eyebrow">{tool.category}</div>
+              <h1 className="tool-title" style={{ fontSize: 'clamp(32px,5vw,48px)', marginBottom: 0 }}>
+                {tool.name}
+              </h1>
             </div>
           </div>
+
           <ImageEditor tool={tool} />
           <AdSlot slot={`tool-${tool.id}`} />
         </div>

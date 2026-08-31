@@ -168,16 +168,45 @@ marker('robots', robots, [
 ]);
 
 const home = read('src/app/page.tsx');
-marker('homepage production UI', home, [
-  '/brand/ajn-buzz-logo.png',
-  'Image tools that do the actual work.',
-  'AJN PDF shortcuts',
-  'Real target-size compression',
+marker('homepage task-first UI', home, [
+  'Image tools. Get it done.',
+  'Compress Image',
+  'All Tools',
+  'PDF tools',
   'PDF_SHORTCUTS',
   'ItemList',
   'toolListStructuredData',
 ]);
+for (const noisy of [
+  'Image tools that do the actual work.',
+  'Production-focused image workflows',
+  'Real target-size compression',
+  'Selected-image integrity',
+  'Browser-first processing',
+]) {
+  if (home.includes(noisy)) fail(`homepage still exposes verbose marketing copy: ${noisy}`);
+}
 if (/Free Online|Premium|Sign in|Login/.test(home)) fail('homepage contains removed/free-premium account copy');
+
+const catalog = read('src/components/ToolCatalog.tsx');
+marker('task-first tool cards', catalog, [
+  'const helperText',
+  'Reduce file size',
+  'Change dimensions',
+  'Choose a tool',
+  'Search tools',
+]);
+if (catalog.includes('<div className="tool-card-meta">')) fail('tool cards still render category/badge metadata');
+if (catalog.includes('<div className="tool-formats">')) fail('tool cards still render format metadata');
+
+const toolPage = read('src/app/tools/[slug]/page.tsx');
+if (toolPage.includes('tool-trust')) fail('tool page still renders verbose trust chips above the editor');
+if (toolPage.includes('<p className="lead">{tool.description}</p>')) fail('tool page still renders the long description above the editor');
+marker('tool SEO retained', toolPage, [
+  'description: tool.description',
+  'featureList: [tool.description, tool.formats]',
+  'ImageEditor tool={tool}',
+]);
 
 const shell = read('src/components/Shell.tsx');
 marker('branding/navigation', shell, [
