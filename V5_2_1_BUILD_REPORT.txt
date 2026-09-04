@@ -1,0 +1,30 @@
+AJN BUZZ IMAGE V5.2.1 FORMAT FIX BUILD REPORT
+
+ROOT CAUSE FROM USER BUILD LOG
+- Next.js production build was blocked by prettier/prettier ESLint formatting errors.
+- No GitHub push occurred because the production gate correctly stopped.
+- V5.2 verifier used exact quote-style markers and could conflict with Prettier formatting.
+
+V5.2.1 FIX
+- Added deterministic .prettierrc.json.
+- Added .prettierignore.
+- Reworked scripts/verify.mjs to be quote/whitespace-format independent.
+- Added a dirty-tree-safe repair script that formats source before verify/typecheck/build.
+- Retained the V5.2 SEO, sitemap, canonical, image-processing and runtime bug fixes.
+
+ARTIFACT ENVIRONMENT CHECKS
+- node --check scripts/verify.mjs
+- node --check next.config.mjs
+- source registry and required files audit
+- ZIP integrity + SHA256
+
+AUTHORITATIVE WINDOWS GATES BEFORE PUSH
+1. Prettier --write TS/TSX/MJS
+2. npm run verify
+3. npm run typecheck
+4. npm run build
+5. git diff --check
+6. commit
+7. SSH push main
+
+No push occurs if verify, TypeScript or Next.js build fails.

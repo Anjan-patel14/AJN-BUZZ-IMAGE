@@ -1,3 +1,4 @@
-export const ADSENSE_PUBLISHER_ID = 'pub-4495802176396975';
+export const ADSENSE_PUBLISHER_ID = "pub-4495802176396975";
 export const ADSENSE_CLIENT = `ca-${ADSENSE_PUBLISHER_ID}`;
-export const ADS_TXT_LINE = 'google.com, pub-4495802176396975, DIRECT, f08c47fec0942fa0';
+export const ADS_TXT_LINE =
+  "google.com, pub-4495802176396975, DIRECT, f08c47fec0942fa0";

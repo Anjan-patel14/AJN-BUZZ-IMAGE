@@ -1,18 +1,229 @@
+/* eslint-disable @next/next/no-img-element */
 "use client";
-import Link from 'next/link';
-import { ExternalLink, FileText, Heart, History, Home, Menu, Search, Wrench, X } from 'lucide-react';
-import { usePathname } from 'next/navigation';
-import { useEffect, useState } from 'react';
+import Link from "next/link";
+import {
+  ExternalLink,
+  FileText,
+  Heart,
+  History,
+  Home,
+  Menu,
+  Search,
+  Wrench,
+  X,
+} from "lucide-react";
+import { usePathname } from "next/navigation";
+import { useEffect, useState } from "react";
 
-function Brand(){return <Link href="/" className="brand" aria-label="AJN Buzz home"><span className="brand-logo-shell"><img src="/brand/ajn-buzz-logo.png" alt="" width="42" height="42"/></span><span><b>AJN Buzz</b><small>IMAGE TOOLS</small></span></Link>}
-
-export function Navbar(){
-  const [open,setOpen]=useState(false); const [scrolled,setScrolled]=useState(false);
-  useEffect(()=>{const onScroll=()=>setScrolled(window.scrollY>18);onScroll();window.addEventListener('scroll',onScroll,{passive:true});return()=>window.removeEventListener('scroll',onScroll)},[]);
-  return <header className={`nav ajn-glass-card ${scrolled||open?'scrolled':''}`}><div className="navin"><Brand/><nav className={`navlinks ${open?'open':''}`}><Link href="/tools" className="tools-link">Image Tools</Link><Link href="/tools/compress">Compress</Link><Link href="/tools/resize">Resize</Link><Link href="/tools/crop">Crop</Link><Link href="/tools/convert">Convert</Link><a className="pdf-nav-link" href="https://ajnpdf.com" target="_blank" rel="noopener noreferrer">PDF Tools <ExternalLink size={13}/></a></nav><div className="nav-actions"><Link href="/tools" className="nav-icon" title="Search image tools"><Search size={18}/></Link><div className="nav-utility"><Link href="/favorites" title="Favorites"><Heart size={17}/></Link><Link href="/recent" title="Recent tools"><History size={17}/></Link></div><button className="mobile-menu" aria-label="Toggle navigation" aria-expanded={open} onClick={()=>setOpen(v=>!v)}>{open?<X size={21}/>:<Menu size={21}/>}</button></div>{open?<div className="mobile-nav-panel"><div className="mobile-quick"><Link href="/tools/compress" onClick={()=>setOpen(false)}>Compress</Link><Link href="/tools/resize" onClick={()=>setOpen(false)}>Resize</Link><Link href="/tools/crop" onClick={()=>setOpen(false)}>Crop</Link><Link href="/tools/convert" onClick={()=>setOpen(false)}>Convert</Link></div><Link href="/tools" onClick={()=>setOpen(false)}>All Image Tools <span>›</span></Link><a href="https://ajnpdf.com" target="_blank" rel="noopener noreferrer">AJN PDF Tools <ExternalLink size={14}/></a><Link href="/favorites" onClick={()=>setOpen(false)}>Favorites <span>›</span></Link><Link href="/recent" onClick={()=>setOpen(false)}>Recent <span>›</span></Link><Link href="/help" onClick={()=>setOpen(false)}>Help <span>›</span></Link></div>:null}</div></header>
+function Brand() {
+  return (
+    <Link href="/" className="brand" aria-label="AJN Buzz home">
+      <span className="brand-logo-shell">
+        <img src="/brand/ajn-buzz-logo.png" alt="" width="42" height="42" />
+      </span>
+      <span>
+        <b>AJN Buzz</b>
+        <small>IMAGE TOOLS</small>
+      </span>
+    </Link>
+  );
 }
 
-function MobileBottomNav(){const pathname=usePathname();return <nav className="mobile-bottom-nav" aria-label="Mobile navigation"><div className="mobile-bottom-nav-inner ajn-glass-card"><Link href="/" className={pathname==='/'?'active':''}><Home size={18}/><span>Home</span></Link><Link href="/tools" className={pathname.startsWith('/tools')?'active':''}><Wrench size={18}/><span>Tools</span></Link><a href="https://ajnpdf.com" target="_blank" rel="noopener noreferrer"><FileText size={18}/><span>PDF</span></a><Link href="/recent" className={pathname.startsWith('/recent')?'active':''}><History size={18}/><span>Recent</span></Link></div></nav>}
+export function Navbar() {
+  const [open, setOpen] = useState(false);
+  const [scrolled, setScrolled] = useState(false);
+  useEffect(() => {
+    const onScroll = () => setScrolled(window.scrollY > 18);
+    onScroll();
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
+  return (
+    <header
+      className={`nav ajn-glass-card ${scrolled || open ? "scrolled" : ""}`}
+    >
+      <div className="navin">
+        <Brand />
+        <nav className={`navlinks ${open ? "open" : ""}`}>
+          <Link href="/tools" className="tools-link">
+            Image Tools
+          </Link>
+          <Link href="/tools/compress">Compress</Link>
+          <Link href="/tools/resize">Resize</Link>
+          <Link href="/tools/crop">Crop</Link>
+          <Link href="/tools/convert">Convert</Link>
+          <a
+            className="pdf-nav-link"
+            href="https://ajnpdf.com"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            PDF Tools <ExternalLink size={13} />
+          </a>
+        </nav>
+        <div className="nav-actions">
+          <Link href="/tools" className="nav-icon" title="Search image tools">
+            <Search size={18} />
+          </Link>
+          <div className="nav-utility">
+            <Link href="/favorites" title="Favorites">
+              <Heart size={17} />
+            </Link>
+            <Link href="/recent" title="Recent tools">
+              <History size={17} />
+            </Link>
+          </div>
+          <button
+            className="mobile-menu"
+            aria-label="Toggle navigation"
+            aria-expanded={open}
+            onClick={() => setOpen((v) => !v)}
+          >
+            {open ? <X size={21} /> : <Menu size={21} />}
+          </button>
+        </div>
+        {open ? (
+          <div className="mobile-nav-panel">
+            <div className="mobile-quick">
+              <Link href="/tools/compress" onClick={() => setOpen(false)}>
+                Compress
+              </Link>
+              <Link href="/tools/resize" onClick={() => setOpen(false)}>
+                Resize
+              </Link>
+              <Link href="/tools/crop" onClick={() => setOpen(false)}>
+                Crop
+              </Link>
+              <Link href="/tools/convert" onClick={() => setOpen(false)}>
+                Convert
+              </Link>
+            </div>
+            <Link href="/tools" onClick={() => setOpen(false)}>
+              All Image Tools <span>›</span>
+            </Link>
+            <a
+              href="https://ajnpdf.com"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              AJN PDF Tools <ExternalLink size={14} />
+            </a>
+            <Link href="/favorites" onClick={() => setOpen(false)}>
+              Favorites <span>›</span>
+            </Link>
+            <Link href="/recent" onClick={() => setOpen(false)}>
+              Recent <span>›</span>
+            </Link>
+            <Link href="/help" onClick={() => setOpen(false)}>
+              Help <span>›</span>
+            </Link>
+          </div>
+        ) : null}
+      </div>
+    </header>
+  );
+}
 
-export function Footer(){return <footer className="footer"><div className="footer-grid"><div className="footer-brand"><Brand/><p>Focused browser image tools with real target-size compression and direct shortcuts to AJN PDF.</p></div><div><b>Image tools</b><Link href="/tools/compress">Compress</Link><Link href="/tools/resize">Resize</Link><Link href="/tools/crop">Crop</Link><Link href="/tools/convert">Convert</Link></div><div><b>AJN PDF</b><a href="https://ajnpdf.com" target="_blank" rel="noopener noreferrer">All PDF Tools</a><a href="https://ajnpdf.com/compress-pdf" target="_blank" rel="noopener noreferrer">Compress PDF</a><a href="https://ajnpdf.com/merge-pdf" target="_blank" rel="noopener noreferrer">Merge PDF</a></div><div><b>Help</b><Link href="/about">About</Link><Link href="/help">Help</Link><Link href="/faq">FAQ</Link><Link href="/contact">Contact</Link></div><div><b>Legal</b><Link href="/privacy">Privacy</Link><Link href="/terms">Terms</Link><span className="small muted">© {new Date().getFullYear()} AJN Buzz</span></div></div></footer>}
-export function Page({children}:{children:React.ReactNode}){return <div className="ajn-page-shell"><Navbar/>{children}<Footer/><MobileBottomNav/></div>}
+function MobileBottomNav() {
+  const pathname = usePathname();
+  return (
+    <nav className="mobile-bottom-nav" aria-label="Mobile navigation">
+      <div className="mobile-bottom-nav-inner ajn-glass-card">
+        <Link href="/" className={pathname === "/" ? "active" : ""}>
+          <Home size={18} />
+          <span>Home</span>
+        </Link>
+        <Link
+          href="/tools"
+          className={pathname.startsWith("/tools") ? "active" : ""}
+        >
+          <Wrench size={18} />
+          <span>Tools</span>
+        </Link>
+        <a href="https://ajnpdf.com" target="_blank" rel="noopener noreferrer">
+          <FileText size={18} />
+          <span>PDF</span>
+        </a>
+        <Link
+          href="/recent"
+          className={pathname.startsWith("/recent") ? "active" : ""}
+        >
+          <History size={18} />
+          <span>Recent</span>
+        </Link>
+      </div>
+    </nav>
+  );
+}
+
+export function Footer() {
+  return (
+    <footer className="footer">
+      <div className="footer-grid">
+        <div className="footer-brand">
+          <Brand />
+          <p>
+            Focused browser image tools with real target-size compression and
+            direct shortcuts to AJN PDF.
+          </p>
+        </div>
+        <div>
+          <b>Image tools</b>
+          <Link href="/tools/compress">Compress</Link>
+          <Link href="/tools/resize">Resize</Link>
+          <Link href="/tools/crop">Crop</Link>
+          <Link href="/tools/convert">Convert</Link>
+        </div>
+        <div>
+          <b>AJN PDF</b>
+          <a
+            href="https://ajnpdf.com"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            All PDF Tools
+          </a>
+          <a
+            href="https://ajnpdf.com/compress-pdf"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            Compress PDF
+          </a>
+          <a
+            href="https://ajnpdf.com/merge-pdf"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            Merge PDF
+          </a>
+        </div>
+        <div>
+          <b>Help</b>
+          <Link href="/about">About</Link>
+          <Link href="/help">Help</Link>
+          <Link href="/faq">FAQ</Link>
+          <Link href="/contact">Contact</Link>
+        </div>
+        <div>
+          <b>Legal</b>
+          <Link href="/privacy">Privacy</Link>
+          <Link href="/terms">Terms</Link>
+          <span className="small muted">
+            © {new Date().getFullYear()} AJN Buzz
+          </span>
+        </div>
+      </div>
+    </footer>
+  );
+}
+export function Page({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="ajn-page-shell">
+      <Navbar />
+      {children}
+      <Footer />
+      <MobileBottomNav />
+    </div>
+  );
+}

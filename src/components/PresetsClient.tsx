@@ -1,3 +1,55 @@
-'use client';
-import Link from 'next/link';import { useEffect,useState } from 'react';import { Trash2 } from 'lucide-react';import { deletePreset,savedPresets,type SavedPreset } from '@/lib/tool-state';import { TOOL_MAP } from '@/lib/image-tools';
-export function PresetsClient(){const[list,setList]=useState<SavedPreset[]>([]);const sync=()=>setList(savedPresets());useEffect(()=>sync(),[]);if(!list.length)return <div className="empty-state"><h3>No saved presets yet</h3><p>Open any image tool, configure its controls and choose “Save settings as preset”.</p><Link className="btn primary" href="/tools">Browse tools</Link></div>;return <div className="preset-list">{list.map(item=>{const tool=TOOL_MAP.get(item.tool);return <div className="preset-card" key={item.id}><div><span>{tool?.name||item.tool}</span><h3>{item.name}</h3><p>Saved {new Date(item.createdAt).toLocaleDateString()}</p></div><div><Link className="btn compact" href={`/tools/${item.tool}`}>Open tool</Link><button className="icon-button danger" onClick={()=>{deletePreset(item.id);sync()}} aria-label="Delete preset"><Trash2 size={17}/></button></div></div>})}</div>}
+"use client";
+import Link from "next/link";
+import { useEffect, useState } from "react";
+import { Trash2 } from "lucide-react";
+import { deletePreset, savedPresets, type SavedPreset } from "@/lib/tool-state";
+import { TOOL_MAP } from "@/lib/image-tools";
+export function PresetsClient() {
+  const [list, setList] = useState<SavedPreset[]>([]);
+  const sync = () => setList(savedPresets());
+  useEffect(() => sync(), []);
+  if (!list.length)
+    return (
+      <div className="empty-state">
+        <h3>No saved presets yet</h3>
+        <p>
+          Open any image tool, configure its controls and choose “Save settings
+          as preset”.
+        </p>
+        <Link className="btn primary" href="/tools">
+          Browse tools
+        </Link>
+      </div>
+    );
+  return (
+    <div className="preset-list">
+      {list.map((item) => {
+        const tool = TOOL_MAP.get(item.tool);
+        return (
+          <div className="preset-card" key={item.id}>
+            <div>
+              <span>{tool?.name || item.tool}</span>
+              <h3>{item.name}</h3>
+              <p>Saved {new Date(item.createdAt).toLocaleDateString()}</p>
+            </div>
+            <div>
+              <Link className="btn compact" href={`/tools/${item.tool}`}>
+                Open tool
+              </Link>
+              <button
+                className="icon-button danger"
+                onClick={() => {
+                  deletePreset(item.id);
+                  sync();
+                }}
+                aria-label="Delete preset"
+              >
+                <Trash2 size={17} />
+              </button>
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
