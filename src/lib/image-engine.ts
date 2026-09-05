@@ -1,4 +1,12 @@
 import type { ToolId } from "./image-tools";
+import {
+  IMAGE_LIMITS,
+  isSupportedImageInput,
+  validateImageDimensions,
+  validateRequestedDimensions,
+} from "./image-validation";
+import { validateEncodedBlob } from "./image-output";
+import { repairWatermarkRegion } from "./remove-watermark";
 
 export type OutputFormat = "image/png" | "image/jpeg" | "image/webp";
 export type CompressionMode = "auto" | "target";
@@ -16,6 +24,11 @@ export type ImageOptions = {
   cropY?: number;
   cropWidth?: number;
   cropHeight?: number;
+  repairX?: number;
+  repairY?: number;
+  repairWidth?: number;
+  repairHeight?: number;
+  feather?: number;
   angle?: number;
   flip?: "none" | "horizontal" | "vertical";
   format?: OutputFormat;
@@ -41,6 +54,7 @@ export type ImageProcessResult = {
   targetBytes?: number;
   note?: string;
   attempts?: number;
+  processingMs?: number;
 };
 
 export type CompressionOptions = {
@@ -56,32 +70,18 @@ type Decoded = {
   close?: () => void;
 };
 
-const MAX_EDGE = 12000;
-const MAX_PIXELS = 36_000_000;
 const MIN_COMPRESS_EDGE = 64;
 
-function validateDimensions(width: number, height: number) {
-  if (!width || !height) throw new Error("The image has invalid dimensions.");
-  if (width > MAX_EDGE || height > MAX_EDGE || width * height > MAX_PIXELS) {
-    throw new Error(
-      "This image is too large for safe browser processing. Resize it first or choose a smaller image.",
-    );
-  }
-}
-
-function supportedInput(file: File) {
-  return file.type.startsWith("image/") || /\.svg$/i.test(file.name);
-}
-
 async function decode(file: File): Promise<Decoded> {
-  if (!supportedInput(file)) throw new Error("Choose a supported image file.");
+  if (!isSupportedImageInput(file))
+    throw new Error("Choose a supported image file.");
 
   if ("createImageBitmap" in window) {
     try {
       const bitmap = await createImageBitmap(file, {
         imageOrientation: "from-image",
       });
-      validateDimensions(bitmap.width, bitmap.height);
+      validateImageDimensions(bitmap.width, bitmap.height);
       return {
         source: bitmap,
         width: bitmap.width,
@@ -99,7 +99,7 @@ async function decode(file: File): Promise<Decoded> {
   image.src = url;
   try {
     await image.decode();
-    validateDimensions(image.naturalWidth, image.naturalHeight);
+    validateImageDimensions(image.naturalWidth, image.naturalHeight);
     return {
       source: image,
       width: image.naturalWidth,
@@ -115,7 +115,7 @@ async function decode(file: File): Promise<Decoded> {
 function makeCanvas(width: number, height: number) {
   const w = Math.max(1, Math.round(width));
   const h = Math.max(1, Math.round(height));
-  validateDimensions(w, h);
+  validateRequestedDimensions(w, h);
   const canvas = document.createElement("canvas");
   canvas.width = w;
   canvas.height = h;
@@ -164,7 +164,7 @@ function canvasBlob(
       target.toBlob(
         (value) =>
           value
-            ? resolve(value)
+            ? resolve(validateEncodedBlob(value, type))
             : reject(
                 new Error(
                   `Browser could not encode ${type.replace("image/", "").toUpperCase()}.`,
@@ -206,7 +206,6 @@ function safeOutputType(
   if (id === "convert-to-jpg") return "image/jpeg";
   if (id === "jpg-to-png")
     return requested === "image/webp" ? "image/webp" : "image/png";
-  if (id === "background-remover") return "image/png";
   if (requested) return requested;
   if (
     inputType === "image/jpeg" ||
@@ -215,19 +214,6 @@ function safeOutputType(
   )
     return inputType;
   return "image/png";
-}
-
-function hexToRgb(hex: string) {
-  const clean = (hex || "#ffffff").replace("#", "").trim();
-  const value =
-    clean.length === 3
-      ? clean
-          .split("")
-          .map((c) => c + c)
-          .join("")
-      : clean.padEnd(6, "f").slice(0, 6);
-  const number = Number.parseInt(value, 16);
-  return { r: (number >> 16) & 255, g: (number >> 8) & 255, b: number & 255 };
 }
 
 export async function imageDimensions(file: File) {
@@ -445,9 +431,9 @@ export async function processImage(
       const targetWidth = decoded.width * scale;
       const targetHeight = decoded.height * scale;
       if (
-        targetWidth > MAX_EDGE ||
-        targetHeight > MAX_EDGE ||
-        targetWidth * targetHeight > MAX_PIXELS
+        targetWidth > IMAGE_LIMITS.maxEdge ||
+        targetHeight > IMAGE_LIMITS.maxEdge ||
+        targetWidth * targetHeight > IMAGE_LIMITS.maxPixels
       ) {
         throw new Error(
           `${scale}× upscale would exceed the safe browser image limit. Choose a smaller image or use Resize Image.`,
@@ -511,104 +497,26 @@ export async function processImage(
         }
         ctx.drawImage(rotated, 0, 0);
       }
-    } else if (id === "background-remover") {
-      if (decoded.width * decoded.height > 12_000_000) {
-        throw new Error(
-          "Remove Background supports up to 12 megapixels per image for reliable browser processing. Resize the image first, then try again.",
-        );
-      }
+    } else if (id === "remove-watermark") {
       canvas = drawDecoded(decoded);
       const ctx = context2d(canvas, true);
       const pixels = ctx.getImageData(0, 0, canvas.width, canvas.height);
-      const sample = options.color
-        ? hexToRgb(options.color)
-        : (() => {
-            const positions = [
-              0,
-              (canvas.width - 1) * 4,
-              (canvas.height - 1) * canvas.width * 4,
-              (canvas.height * canvas.width - 1) * 4,
-            ];
-            const sum = positions.reduce(
-              (a, p) => ({
-                r: a.r + pixels.data[p]!,
-                g: a.g + pixels.data[p + 1]!,
-                b: a.b + pixels.data[p + 2]!,
-              }),
-              { r: 0, g: 0, b: 0 },
-            );
-            return {
-              r: Math.round(sum.r / 4),
-              g: Math.round(sum.g / 4),
-              b: Math.round(sum.b / 4),
-            };
-          })();
-      const tolerance = Math.min(
-        220,
-        Math.max(5, Number(options.amount || 42)),
+      const repaired = repairWatermarkRegion(
+        pixels.data,
+        canvas.width,
+        canvas.height,
+        {
+          x: Number(options.repairX ?? 0),
+          y: Number(options.repairY ?? 0),
+          width: Number(options.repairWidth ?? 0),
+          height: Number(options.repairHeight ?? 0),
+        },
+        {
+          strength: Number(options.amount ?? 4),
+          feather: Number(options.feather ?? 4),
+        },
       );
-      const width = canvas.width;
-      const height = canvas.height;
-      const count = width * height;
-      const connected = new Uint8Array(count);
-      const matchesBackground = (index: number) => {
-        const i = index * 4;
-        const dr = pixels.data[i]! - sample.r;
-        const dg = pixels.data[i + 1]! - sample.g;
-        const db = pixels.data[i + 2]! - sample.b;
-        return Math.sqrt(dr * dr + dg * dg + db * db) <= tolerance;
-      };
-
-      // Seed matching pixels on all four edges, then propagate edge-connected backgrounds with
-      // alternating scan passes. Only one connectivity mask is allocated to keep memory bounded.
-      for (let x = 0; x < width; x++) {
-        if (matchesBackground(x)) connected[x] = 1;
-        const bottom = (height - 1) * width + x;
-        if (matchesBackground(bottom)) connected[bottom] = 1;
-      }
-      for (let y = 0; y < height; y++) {
-        const left = y * width;
-        const right = left + width - 1;
-        if (matchesBackground(left)) connected[left] = 1;
-        if (matchesBackground(right)) connected[right] = 1;
-      }
-
-      for (let sweep = 0; sweep < 3; sweep++) {
-        for (let y = 0; y < height; y++) {
-          for (let x = 0; x < width; x++) {
-            const index = y * width + x;
-            if (connected[index] || !matchesBackground(index)) continue;
-            if (
-              (x > 0 && connected[index - 1]) ||
-              (y > 0 && connected[index - width])
-            )
-              connected[index] = 1;
-          }
-        }
-        for (let y = height - 1; y >= 0; y--) {
-          for (let x = width - 1; x >= 0; x--) {
-            const index = y * width + x;
-            if (connected[index] || !matchesBackground(index)) continue;
-            if (
-              (x + 1 < width && connected[index + 1]) ||
-              (y + 1 < height && connected[index + width])
-            )
-              connected[index] = 1;
-          }
-        }
-      }
-
-      for (let index = 0; index < count; index++) {
-        if (!connected[index]) continue;
-        const i = index * 4;
-        const dr = pixels.data[i]! - sample.r;
-        const dg = pixels.data[i + 1]! - sample.g;
-        const db = pixels.data[i + 2]! - sample.b;
-        const distance = Math.sqrt(dr * dr + dg * dg + db * db);
-        pixels.data[i + 3] = Math.round(
-          255 * Math.max(0, Math.min(1, distance / tolerance)),
-        );
-      }
+      pixels.data.set(repaired);
       ctx.putImageData(pixels, 0, 0);
     } else if (id === "photo-editor") {
       canvas = makeCanvas(decoded.width, decoded.height);
@@ -680,7 +588,10 @@ export async function processImage(
       throw new Error(`Unsupported image tool: ${id}`);
     }
 
-    const blob = await canvasBlob(canvas, type, quality);
+    const blob = validateEncodedBlob(
+      await canvasBlob(canvas, type, quality),
+      type,
+    );
     return { blob, width: canvas.width, height: canvas.height, type };
   } finally {
     decoded.close?.();

@@ -2,7 +2,7 @@ import { buildPageMetadata } from "@/lib/seo";
 export const metadata = buildPageMetadata({
   title: "AJN Buzz FAQ",
   description:
-    "Answers about target-size image compression, formats, browser privacy, background removal and PDF shortcuts.",
+    "Answers about target-size image compression, formats, browser privacy, watermark removal and PDF shortcuts.",
   path: "/faq",
   index: true,
 });
@@ -33,8 +33,8 @@ const items = [
     "No. This release uses high-quality browser resampling and labels it accurately.",
   ],
   [
-    "How does Remove Background work?",
-    "It removes flat or near-flat colours using corner sampling or a selected background colour plus tolerance. It is not universal AI segmentation.",
+    "How does Remove Watermark work?",
+    "Select only the watermark, timestamp or logo rectangle. AJN Buzz reconstructs that area from surrounding pixels with local inpainting and edge blending. It works best on small overlays and does not pretend to perfectly rebuild every complex texture.",
   ],
   [
     "Why are PDF tools shown here?",

@@ -7,7 +7,7 @@ export type ToolId =
   | "convert"
   | "photo-editor"
   | "watermark"
-  | "background-remover"
+  | "remove-watermark"
   | "upscale"
   | "rotate"
   | "convert-to-jpg"
@@ -311,39 +311,48 @@ export const IMAGE_TOOLS: ImageTool[] = [
     ],
   },
   {
-    id: "background-remover",
-    name: "Remove Background",
-    shortName: "Remove BG",
-    summary: "Remove plain or near-flat backgrounds.",
+    id: "remove-watermark",
+    name: "Remove Watermark",
+    shortName: "Remove Watermark",
+    summary: "Repair a selected watermark or logo area.",
     description:
-      "Remove plain or near-flat edge-connected backgrounds and export transparent PNG. This focused tool does not claim universal AI subject segmentation.",
-    seoTitle: "Remove Plain Image Background Online",
+      "Remove a small watermark, timestamp or logo from an image you are allowed to edit. Select only the marked area and AJN Buzz reconstructs it from surrounding pixels with local browser inpainting.",
+    seoTitle: "Remove Watermark from Image Online",
     seoDescription:
-      "Remove plain, white or near-flat image backgrounds and export transparent PNG. Best for simple backgrounds with AJN Buzz.",
+      "Remove a selected watermark, timestamp or small logo area from your own image with local pixel reconstruction and download the repaired result with AJN Buzz.",
     icon: "Eraser",
     category: "Edit",
-    formats: "PNG output",
+    formats: "JPG · PNG · WebP",
     featured: true,
     local: true,
     seoKeywords: [
-      "remove plain background",
-      "remove white background",
-      "transparent png",
-      "simple background remover",
-      "background transparency",
-      "remove image background simple",
+      "remove watermark from image",
+      "remove watermark online",
+      "remove text from photo",
+      "remove timestamp from photo",
+      "image watermark remover",
+      "remove logo from image",
     ],
-    useCases: ["White backgrounds", "Product cutouts", "Simple graphics"],
+    useCases: [
+      "Remove your own watermark",
+      "Clean timestamps",
+      "Repair small logo overlays",
+    ],
     steps: [
-      "Select an image.",
-      "Auto-sample or choose the background color.",
-      "Adjust tolerance and export PNG.",
+      "Select an image you are allowed to edit.",
+      "Set the watermark X, Y, width and height or choose a position preset.",
+      "Choose repair strength, process and download.",
     ],
     faq: [
       {
-        question: "Does this remove every complex background?",
+        question: "How does Remove Watermark work?",
         answer:
-          "No. It is designed for plain or near-flat edge-connected backgrounds and does not claim universal AI segmentation.",
+          "AJN Buzz repairs only the selected rectangle by sampling pixels around its boundary, blending them inward and smoothing the repaired area. It works best on small overlays and simple or moderately textured backgrounds.",
+      },
+      {
+        question: "Will it perfectly reconstruct every photo?",
+        answer:
+          "No. Large marks over faces, text, detailed objects or complex patterns can require a smaller selection or a dedicated content-aware model. AJN Buzz reports limits instead of pretending a perfect result.",
       },
     ],
   },

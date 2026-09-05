@@ -3,7 +3,7 @@ $P=Split-Path -Parent $MyInvocation.MyCommand.Path
 Set-Location $P
 Clear-Host
 Write-Host '============================================================' -ForegroundColor Cyan
-Write-Host ' AJN BUZZ IMAGE V5.2.1 :: PROFESSIONAL PRODUCTION PREVIEW' -ForegroundColor Cyan
+Write-Host ' AJN BUZZ IMAGE V5.3 :: PROFESSIONAL PRODUCTION PREVIEW' -ForegroundColor Cyan
 Write-Host ' STRONG SEO + REAL KB/MB COMPRESSION + LIVE SITEMAP' -ForegroundColor Cyan
 Write-Host ' NO LOGIN | NO BILLING | NO WORKSPACE' -ForegroundColor Yellow
 Write-Host '============================================================' -ForegroundColor Cyan
@@ -17,7 +17,7 @@ Get-NetTCPConnection -LocalPort 9010 -State Listen -ErrorAction SilentlyContinue
 Start-Sleep 1
 
 $pkg=Get-Content '.\package.json' -Raw | ConvertFrom-Json
-if($pkg.version -ne '5.2.1'){throw "Expected AJN Buzz 5.2.1, found $($pkg.version)"}
+if($pkg.version -ne '5.3.0'){throw "Expected AJN Buzz 5.3.0, found $($pkg.version)"}
 if($pkg.devDependencies.typescript -ne '5.7.3'){throw "Expected TypeScript 5.7.3, found $($pkg.devDependencies.typescript)"}
 
 $tsc=Join-Path $P 'node_modules\.bin\tsc.cmd'
@@ -36,7 +36,7 @@ Write-Host "[PASS] $tsVersion" -ForegroundColor Green
 if(Test-Path '.next'){Remove-Item '.next' -Recurse -Force -ErrorAction SilentlyContinue}
 Write-Host '[INFO] Running source verification + TypeScript + optimized Next.js build...' -ForegroundColor Cyan
 npm.cmd run check
-if($LASTEXITCODE -ne 0){throw 'AJN Buzz V5.2.1 production check failed'}
+if($LASTEXITCODE -ne 0){throw 'AJN Buzz V5.3 production check failed'}
 Write-Host '[PASS] Source + TypeScript + production build complete' -ForegroundColor Green
 
 $server=Start-Process -FilePath 'cmd.exe' -ArgumentList @('/k',("cd /d `"{0}`" && npm.cmd run dev" -f $P)) -PassThru
@@ -60,5 +60,5 @@ Write-Host 'Sitemap   : http://localhost:9010/sitemap.xml'
 Write-Host 'Robots    : http://localhost:9010/robots.txt'
 Write-Host 'Ads.txt   : http://localhost:9010/ads.txt'
 Write-Host ''
-Write-Host '[PASS] AJN BUZZ IMAGE V5.2.1 PRODUCTION PREVIEW READY' -ForegroundColor Green
+Write-Host '[PASS] AJN BUZZ IMAGE V5.3 PRODUCTION PREVIEW READY' -ForegroundColor Green
 Start-Process 'http://localhost:9010'

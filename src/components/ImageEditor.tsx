@@ -65,7 +65,12 @@ const DEFAULT_OPTIONS: ImageOptions = {
   format: "image/webp",
   angle: 90,
   flip: "none",
-  amount: 42,
+  amount: 4,
+  feather: 4,
+  repairX: 0,
+  repairY: 0,
+  repairWidth: 0,
+  repairHeight: 0,
   opacity: 0.55,
   fontSize: 48,
   color: "#ffffff",
@@ -91,13 +96,13 @@ export function ImageEditor({ tool }: { tool: ImageTool }) {
   const [progress, setProgress] = useState(0);
   const supportsLivePreview = ![
     "compress",
-    "background-remover",
+    "remove-watermark",
     "upscale",
   ].includes(tool.id);
   const [livePreview, setLivePreview] = useState(supportsLivePreview);
   const [lockAspect, setLockAspect] = useState(true);
   const [ratio, setRatio] = useState(1);
-  const [autoBackground, setAutoBackground] = useState(true);
+  const [sourceDims, setSourceDims] = useState({ width: 0, height: 0 });
   const [options, setOptions] = useState<ImageOptions>({ ...DEFAULT_OPTIONS });
   const [compressMode, setCompressMode] = useState<CompressionMode>("auto");
   const [targetValue, setTargetValue] = useState(100);
@@ -119,14 +124,12 @@ export function ImageEditor({ tool }: { tool: ImageTool }) {
   const configuredBatch = Number.isFinite(configuredBatchRaw)
     ? Math.min(20, Math.max(1, Math.round(configuredBatchRaw)))
     : 20;
-  const runLimit = tool.id === "compress" ? 1 : configuredBatch;
+  const runLimit = ["compress", "remove-watermark"].includes(tool.id)
+    ? 1
+    : configuredBatch;
 
   const forcedType: OutputFormat | null =
-    tool.id === "convert-to-jpg"
-      ? "image/jpeg"
-      : tool.id === "background-remover"
-        ? "image/png"
-        : null;
+    tool.id === "convert-to-jpg" ? "image/jpeg" : null;
 
   useEffect(() => {
     markRecentTool(tool.id);
@@ -178,11 +181,8 @@ export function ImageEditor({ tool }: { tool: ImageTool }) {
     () => ({
       ...options,
       format: forcedType || options.format,
-      ...(tool.id === "background-remover" && autoBackground
-        ? { color: undefined }
-        : {}),
     }),
-    [options, forcedType, tool.id, autoBackground],
+    [options, forcedType],
   );
 
   const targetBytes = useMemo(() => {
@@ -248,11 +248,12 @@ export function ImageEditor({ tool }: { tool: ImageTool }) {
       setError(`Choose a supported image up to ${maxMb} MB.`);
       return;
     }
-    if (tool.id === "compress" && valid.length > 1)
+    if (runLimit === 1 && valid.length > 1) {
       setMessage(
-        "Compress Image processes one image at a time; the first selected image was loaded.",
+        `${tool.name} processes one image at a time; the first selected image was loaded.`,
       );
-    if (tool.id === "compress") valid = valid.slice(0, 1);
+    }
+    if (runLimit === 1) valid = valid.slice(0, 1);
     else if (valid.length > runLimit) {
       setMessage(`Up to ${runLimit} images are processed per run.`);
       valid = valid.slice(0, runLimit);
@@ -262,13 +263,11 @@ export function ImageEditor({ tool }: { tool: ImageTool }) {
     try {
       const dimensions = await imageDimensions(first);
       setRatio(dimensions.width / dimensions.height);
+      setSourceDims(dimensions);
       setOptions((current) => {
-        const preserve = ![
-          "convert",
-          "convert-to-jpg",
-          "jpg-to-png",
-          "background-remover",
-        ].includes(tool.id);
+        const preserve = !["convert", "convert-to-jpg", "jpg-to-png"].includes(
+          tool.id,
+        );
         const nextFormat = preserve
           ? sourceFormat(first) || current.format
           : current.format;
@@ -292,6 +291,16 @@ export function ImageEditor({ tool }: { tool: ImageTool }) {
                   220,
                   Math.max(24, Math.round(dimensions.width / 18)),
                 ),
+              }
+            : {}),
+          ...(tool.id === "remove-watermark"
+            ? {
+                repairX: Math.max(0, Math.round(dimensions.width * 0.68)),
+                repairY: Math.max(0, Math.round(dimensions.height * 0.78)),
+                repairWidth: Math.max(2, Math.round(dimensions.width * 0.28)),
+                repairHeight: Math.max(2, Math.round(dimensions.height * 0.16)),
+                amount: 4,
+                feather: 4,
               }
             : {}),
         };
@@ -410,7 +419,6 @@ export function ImageEditor({ tool }: { tool: ImageTool }) {
       ...DEFAULT_OPTIONS,
       format: current.format || DEFAULT_OPTIONS.format,
     }));
-    setAutoBackground(true);
     setLockAspect(true);
     setCompressMode("auto");
     setTargetValue(100);
@@ -424,6 +432,7 @@ export function ImageEditor({ tool }: { tool: ImageTool }) {
       void imageDimensions(files[0])
         .then((d) => {
           setRatio(d.width / d.height);
+          setSourceDims(d);
           setOptions((current) => ({
             ...current,
             ...(tool.id === "resize"
@@ -431,6 +440,16 @@ export function ImageEditor({ tool }: { tool: ImageTool }) {
               : {}),
             ...(tool.id === "crop"
               ? { cropX: 0, cropY: 0, cropWidth: d.width, cropHeight: d.height }
+              : {}),
+            ...(tool.id === "remove-watermark"
+              ? {
+                  repairX: Math.max(0, Math.round(d.width * 0.68)),
+                  repairY: Math.max(0, Math.round(d.height * 0.78)),
+                  repairWidth: Math.max(2, Math.round(d.width * 0.28)),
+                  repairHeight: Math.max(2, Math.round(d.height * 0.16)),
+                  amount: 4,
+                  feather: 4,
+                }
               : {}),
           }));
         })
@@ -463,6 +482,38 @@ export function ImageEditor({ tool }: { tool: ImageTool }) {
         ? { width: Math.max(1, Math.round(value * ratio)) }
         : {}),
     }));
+  }
+  function setRepairPreset(
+    position:
+      | "top-left"
+      | "top-right"
+      | "center"
+      | "bottom-left"
+      | "bottom-right",
+  ) {
+    if (!sourceDims.width || !sourceDims.height) return;
+    const width = Math.max(2, Math.round(sourceDims.width * 0.28));
+    const height = Math.max(2, Math.round(sourceDims.height * 0.16));
+    const marginX = Math.max(0, Math.round(sourceDims.width * 0.03));
+    const marginY = Math.max(0, Math.round(sourceDims.height * 0.03));
+    const x = position.endsWith("left")
+      ? marginX
+      : position.endsWith("right")
+        ? Math.max(0, sourceDims.width - width - marginX)
+        : Math.max(0, Math.round((sourceDims.width - width) / 2));
+    const y = position.startsWith("top")
+      ? marginY
+      : position.startsWith("bottom")
+        ? Math.max(0, sourceDims.height - height - marginY)
+        : Math.max(0, Math.round((sourceDims.height - height) / 2));
+    setOptions((current) => ({
+      ...current,
+      repairX: x,
+      repairY: y,
+      repairWidth: width,
+      repairHeight: height,
+    }));
+    clearResults();
   }
   const numberField = (
     key: keyof ImageOptions,
@@ -589,16 +640,12 @@ export function ImageEditor({ tool }: { tool: ImageTool }) {
           />
           <UploadCloud size={32} />
           <div>
-            <b>
-              {tool.id === "compress" ? "Select an image" : "Select images"}
-            </b>
-            <span> or drop {tool.id === "compress" ? "it" : "them"} here</span>
+            <b>{runLimit === 1 ? "Select an image" : "Select images"}</b>
+            <span> or drop {runLimit === 1 ? "it" : "them"} here</span>
           </div>
           <p>
             {maxMb} MB max{" "}
-            {tool.id === "compress"
-              ? "· 1 image"
-              : `· up to ${runLimit} images`}
+            {runLimit === 1 ? "· 1 image" : `· up to ${runLimit} images`}
           </p>
         </div>
 
@@ -1023,34 +1070,74 @@ export function ImageEditor({ tool }: { tool: ImageTool }) {
             {rangeField("blur", "Blur", 0, 30)}
           </>
         ) : null}
-        {tool.id === "background-remover" ? (
+        {tool.id === "remove-watermark" ? (
           <>
-            <label className="check">
-              <input
-                type="checkbox"
-                checked={autoBackground}
-                onChange={(event) => setAutoBackground(event.target.checked)}
-              />
-              Auto-sample four image corners
-            </label>
-            {!autoBackground ? (
-              <div className="field">
-                <label>Background colour</label>
-                <input
-                  type="color"
-                  value={options.color || "#ffffff"}
-                  onChange={(event) =>
-                    setOptions((current) => ({
-                      ...current,
-                      color: event.target.value,
-                    }))
-                  }
-                />
+            <div className="field">
+              <label>Watermark area preset</label>
+              <div
+                className="target-preset-row"
+                aria-label="Watermark area presets"
+              >
+                {[
+                  ["Top left", "top-left"],
+                  ["Top right", "top-right"],
+                  ["Center", "center"],
+                  ["Bottom left", "bottom-left"],
+                  ["Bottom right", "bottom-right"],
+                ].map(([label, position]) => (
+                  <button
+                    type="button"
+                    key={position}
+                    onClick={() =>
+                      setRepairPreset(
+                        position as
+                          | "top-left"
+                          | "top-right"
+                          | "center"
+                          | "bottom-left"
+                          | "bottom-right",
+                      )
+                    }
+                  >
+                    {label}
+                  </button>
+                ))}
               </div>
-            ) : null}
-            {rangeField("amount", "Tolerance", 5, 220)}
+            </div>
+            <div className="row">
+              {numberField(
+                "repairX",
+                "X",
+                0,
+                Math.max(0, sourceDims.width - 1),
+              )}
+              {numberField(
+                "repairY",
+                "Y",
+                0,
+                Math.max(0, sourceDims.height - 1),
+              )}
+            </div>
+            <div className="row">
+              {numberField(
+                "repairWidth",
+                "Width",
+                2,
+                sourceDims.width || undefined,
+              )}
+              {numberField(
+                "repairHeight",
+                "Height",
+                2,
+                sourceDims.height || undefined,
+              )}
+            </div>
+            {rangeField("amount", "Repair strength", 1, 8)}
+            {rangeField("feather", "Edge blend", 0, 20)}
             <small className="muted">
-              Best for plain or near-flat backgrounds.
+              Select only a small watermark, timestamp or logo area. Best
+              results come from tight selections over simple or moderately
+              textured backgrounds.
             </small>
           </>
         ) : null}

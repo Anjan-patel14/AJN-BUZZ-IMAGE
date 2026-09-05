@@ -1,18 +1,22 @@
 import { IMAGE_TOOLS } from "@/lib/image-tools";
+
 export async function GET() {
   return Response.json({
     status: "ok",
     product: "AJN Buzz Image",
-    version: "5.2.1",
+    version: "5.3.0",
     public_tools: IMAGE_TOOLS.length,
     processing: "browser-local",
     target_size_compression: true,
     seo_ready: true,
     ads_txt: true,
     sitemap_registry_sync: true,
+    remove_watermark_local_inpainting: true,
+    output_validation: true,
+    dimension_safety: true,
+    batch_processing: true,
     all_tools_explicit: true,
     stale_selection_fix: true,
-    edge_connected_background_removal: true,
     watermark_positions: true,
     rotate_zero_fix: true,
     compression_aspect_fix: true,

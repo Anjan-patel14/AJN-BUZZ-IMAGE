@@ -1,0 +1,15 @@
+AJN BUZZ IMAGE V5.3
+Scope: logic/output reliability; existing visual design preserved.
+
+Implemented:
+- Remove Background -> Remove Watermark
+- selected-area local inpainting core
+- repair bounds/area safety
+- shared dimension/input validation
+- output blob validation
+- explicit 11-tool routing
+- stale output cleanup retained
+- production verification and logic tests
+- strict lint/type/build/push gate
+
+Final production build and localhost acceptance are performed by SAFE_PUSH_AJN_BUZZ_V5_3.ps1 on the target Windows repository before any push.

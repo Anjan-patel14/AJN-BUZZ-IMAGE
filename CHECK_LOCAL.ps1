@@ -1,9 +1,9 @@
 $ErrorActionPreference='Continue'
 $base='http://localhost:9010'
 $canonical='https://www.ajn.buzz'
-$routes=@('/','/tools','/features','/favorites','/recent','/presets','/help','/faq','/about','/status','/privacy','/terms','/contact','/robots.txt','/sitemap.xml','/manifest.webmanifest','/ads.txt','/app-ads.txt','/api/health','/api/config','/tools/compress','/tools/resize','/tools/crop','/tools/convert','/tools/photo-editor','/tools/watermark','/tools/background-remover','/tools/upscale','/tools/rotate','/tools/convert-to-jpg','/tools/jpg-to-png')
+$routes=@('/','/tools','/features','/favorites','/recent','/presets','/help','/faq','/about','/status','/privacy','/terms','/contact','/robots.txt','/sitemap.xml','/manifest.webmanifest','/ads.txt','/app-ads.txt','/api/health','/api/config','/tools/compress','/tools/resize','/tools/crop','/tools/convert','/tools/photo-editor','/tools/watermark','/tools/remove-watermark','/tools/upscale','/tools/rotate','/tools/convert-to-jpg','/tools/jpg-to-png')
 $removed=@('/workspace','/pricing','/login','/signup','/forgot-password','/account','/account/profile','/account/security','/account/billing','/admin','/api/billing/status','/api/billing/order')
-$toolRoutes=@('/tools/compress','/tools/resize','/tools/crop','/tools/convert','/tools/photo-editor','/tools/watermark','/tools/background-remover','/tools/upscale','/tools/rotate','/tools/convert-to-jpg','/tools/jpg-to-png')
+$toolRoutes=@('/tools/compress','/tools/resize','/tools/crop','/tools/convert','/tools/photo-editor','/tools/watermark','/tools/remove-watermark','/tools/upscale','/tools/rotate','/tools/convert-to-jpg','/tools/jpg-to-png')
 $failed=0
 
 foreach($route in $routes){
@@ -16,8 +16,8 @@ foreach($route in $routes){
 
 try{
   $health=Invoke-RestMethod "$base/api/health" -TimeoutSec 15
-  if($health.public_tools -eq 11 -and $health.version -eq '5.2.1' -and $health.account_required -eq $false -and $health.target_size_compression -eq $true -and $health.seo_ready -eq $true -and $health.ads_txt -eq $true -and $health.sitemap_registry_sync -eq $true -and $health.all_tools_explicit -eq $true -and $health.stale_selection_fix -eq $true -and $health.rotate_zero_fix -eq $true -and $health.compression_aspect_fix -eq $true -and $health.recovery_pages -eq $true){
-    Write-Host '[PASS] API reports V5.2.1 + 11 tools + SEO + compression + workflow bug fixes' -ForegroundColor Green
+  if($health.public_tools -eq 11 -and $health.version -eq '5.3.0' -and $health.account_required -eq $false -and $health.target_size_compression -eq $true -and $health.remove_watermark_local_inpainting -eq $true -and $health.output_validation -eq $true -and $health.seo_ready -eq $true -and $health.ads_txt -eq $true -and $health.sitemap_registry_sync -eq $true -and $health.all_tools_explicit -eq $true -and $health.stale_selection_fix -eq $true -and $health.rotate_zero_fix -eq $true -and $health.compression_aspect_fix -eq $true -and $health.recovery_pages -eq $true){
+    Write-Host '[PASS] API reports V5.3 + 11 tools + compression + Remove Watermark + workflow validation' -ForegroundColor Green
   }else{$failed++;Write-Host "[FAIL] API state = $($health | ConvertTo-Json -Compress)" -ForegroundColor Red}
 }catch{$failed++;Write-Host '[FAIL] Could not validate API production state' -ForegroundColor Red}
 
@@ -63,6 +63,8 @@ $aliases=@{
   '/image-converter'='/tools/convert'
   '/image-to-jpg'='/tools/convert-to-jpg'
   '/jpg-to-png'='/tools/jpg-to-png'
+  '/remove-watermark'='/tools/remove-watermark'
+  '/remove-background'='/tools/remove-watermark'
 }
 foreach($alias in $aliases.Keys){
   try{
@@ -91,4 +93,4 @@ foreach($route in $removed){
 }
 
 if($failed -gt 0){throw "LOCAL ACCEPTANCE FAILED: $failed check(s) failed"}
-Write-Host '[PASS] AJN BUZZ V5.2.1 localhost acceptance complete' -ForegroundColor Green
+Write-Host '[PASS] AJN BUZZ V5.3 localhost acceptance complete' -ForegroundColor Green

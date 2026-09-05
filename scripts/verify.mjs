@@ -14,7 +14,7 @@ const canonical = (text) =>
   text
     .replace(/"/g, "'")
     .replace(/\s+/g, "")
-    .replace(/,([}\]])/g, "$1")
+    .replace(/,([\]})])/g, "$1")
     .trim();
 
 const has = (text, marker) => canonical(text).includes(canonical(marker));
@@ -32,6 +32,9 @@ const required = [
   "public/app-ads.txt",
   "src/lib/ads.ts",
   "src/lib/image-engine.ts",
+  "src/lib/image-validation.ts",
+  "src/lib/image-output.ts",
+  "src/lib/remove-watermark.ts",
   "src/lib/image-tools.ts",
   "src/lib/seo.ts",
   "src/lib/pdf-shortcuts.ts",
@@ -87,7 +90,7 @@ const expected = [
   "convert",
   "photo-editor",
   "watermark",
-  "background-remover",
+  "remove-watermark",
   "upscale",
   "rotate",
   "convert-to-jpg",
@@ -146,6 +149,20 @@ markers("converter search intent", tools, [
   "image converter online",
 ]);
 
+markers("remove watermark workflow", tools, [
+  "id: 'remove-watermark'",
+  "name: 'Remove Watermark'",
+  "Remove Watermark from Image Online",
+]);
+const repairCore = read("src/lib/remove-watermark.ts");
+markers("remove watermark core", repairCore, [
+  "normalizeRepairRegion",
+  "repairWatermarkRegion",
+  "selected area is too large",
+  "strength",
+  "feather",
+]);
+
 const engine = read("src/lib/image-engine.ts");
 markers("target compressor", engine, [
   "export async function compressImage",
@@ -160,7 +177,8 @@ markers("explicit processors", engine, [
   "id === 'upscale'",
   "id === 'crop'",
   "id === 'rotate'",
-  "id === 'background-remover'",
+  "id === 'remove-watermark'",
+  "repairWatermarkRegion",
   "id === 'photo-editor'",
   "id === 'watermark'",
   "id === 'convert' || id === 'convert-to-jpg' || id === 'jpg-to-png'",
@@ -171,6 +189,8 @@ markers("bug fixes", engine, [
   "upscale would exceed the safe browser image limit",
   "Enter watermark text before processing.",
   "const nextScale = Math.max(minScale, scale * shrink)",
+  "repairWidth",
+  "repairHeight",
 ]);
 if (has(engine, "Number(options.angle || 90)")) {
   fail("rotate 0 degree fallback bug returned");
@@ -195,18 +215,30 @@ markers("compress UI", editor, [
 markers("selection safety", editor, [
   "function clearSelection()",
   "event.currentTarget.value = ''",
-  "const runLimit = tool.id === 'compress' ? 1",
+  "const runLimit = ['compress', 'remove-watermark'].includes(tool.id) ? 1",
 ]);
 markers("preview safety", editor, [
-  "!['compress', 'background-remover', 'upscale'].includes(tool.id)",
+  "!['compress', 'remove-watermark', 'upscale'].includes(tool.id)",
   "setLivePreview(supportsLivePreview)",
 ]);
 markers("specific workflows", editor, [
   "0° (flip only)",
   "Watermark text",
-  "Auto-sample four image corners",
+  "Watermark area preset",
+  "Repair strength",
+  "Edge blend",
   "JPG to PNG / WebP accepts JPG or JPEG source files.",
 ]);
+
+for (const legacyMarker of ["'background-remover'", '"background-remover"']) {
+  if (
+    tools.includes(legacyMarker) ||
+    engine.includes(legacyMarker) ||
+    editor.includes(legacyMarker)
+  ) {
+    fail("legacy Remove Background processor must not remain public");
+  }
+}
 
 const seo = read("src/lib/seo.ts");
 markers("canonical SEO", seo, [
@@ -310,8 +342,8 @@ markers("AdSense", read("src/lib/ads.ts"), [
 ]);
 
 const pkg = JSON.parse(read("package.json"));
-if (pkg.version !== "5.2.1") {
-  fail(`package version must be 5.2.1, found ${pkg.version}`);
+if (pkg.version !== "5.3.0") {
+  fail(`package version must be 5.3.0, found ${pkg.version}`);
 }
 if (pkg.dependencies?.firebase || pkg.dependencies?.["firebase-admin"]) {
   fail("Firebase dependencies must remain removed");
@@ -326,7 +358,7 @@ for (const [name, version] of Object.entries({
 
 const health = read("src/app/api/health/route.ts");
 markers("health API", health, [
-  "version: '5.2.1'",
+  "version: '5.3.0'",
   "target_size_compression: true",
   "seo_ready: true",
   "sitemap_registry_sync: true",
@@ -370,7 +402,7 @@ console.log(
   "PASS: rotate 0 degree, watermark empty-text, upscale limit and compression aspect-ratio bugs fixed",
 );
 console.log(
-  "PASS: expensive background/upscale live preview disabled to prevent browser hangs",
+  "PASS: expensive remove-watermark/upscale live preview disabled to prevent browser hangs",
 );
 console.log(
   "PASS: global route error, global error and 404 recovery surfaces present",
@@ -382,5 +414,5 @@ console.log(
   "PASS: login, billing, Premium, workspace, Firebase and Razorpay remain removed",
 );
 console.log(
-  "AJN BUZZ IMAGE V5.2.1 FORMAT + SEO + WORKFLOW SOURCE VERIFY: PASS",
+  "AJN BUZZ IMAGE V5.3.0 FORMAT + SEO + WORKFLOW SOURCE VERIFY: PASS",
 );

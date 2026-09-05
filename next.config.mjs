@@ -32,8 +32,18 @@ const nextConfig = {
         permanent: true,
       },
       {
+        source: "/remove-watermark",
+        destination: "/tools/remove-watermark",
+        permanent: true,
+      },
+      {
         source: "/remove-background",
-        destination: "/tools/background-remover",
+        destination: "/tools/remove-watermark",
+        permanent: true,
+      },
+      {
+        source: "/tools/background-remover",
+        destination: "/tools/remove-watermark",
         permanent: true,
       },
       {
