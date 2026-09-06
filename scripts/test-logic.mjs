@@ -6,7 +6,7 @@ import { pathToFileURL } from "node:url";
 import ts from "typescript";
 
 const root = process.cwd();
-const temp = fs.mkdtempSync(path.join(os.tmpdir(), "ajn-buzz-v53-logic-"));
+const temp = fs.mkdtempSync(path.join(os.tmpdir(), "ajn-buzz-v54-logic-"));
 
 function compile(sourceRelative, outputName) {
   const sourcePath = path.join(root, sourceRelative);
@@ -42,6 +42,7 @@ const validationPath = compile(
   "src/lib/image-validation.ts",
   "image-validation.mjs",
 );
+const htmlPath = compile("src/lib/html-to-image.ts", "html-to-image.mjs");
 
 const { normalizeRepairRegion, repairWatermarkRegion } = await import(
   pathToFileURL(repairPath).href
@@ -49,6 +50,8 @@ const { normalizeRepairRegion, repairWatermarkRegion } = await import(
 const { validateImageDimensions, validateRequestedDimensions } = await import(
   pathToFileURL(validationPath).href
 );
+const htmlModule = await import(pathToFileURL(htmlPath).href);
+assert.equal(typeof htmlModule.renderHtmlToImage, "function");
 
 function makeGradient(width, height) {
   const data = new Uint8ClampedArray(width * height * 4);
@@ -142,4 +145,7 @@ console.log(
 );
 console.log("PASS: repair region clamping and oversized-area protection");
 console.log("PASS: shared image dimension safety");
-console.log("AJN BUZZ V5.3 LOGIC TESTS: PASS");
+console.log(
+  "PASS: HTML to Image browser renderer transpiles and exports correctly",
+);
+console.log("AJN BUZZ V5.4 LOGIC TESTS: PASS");

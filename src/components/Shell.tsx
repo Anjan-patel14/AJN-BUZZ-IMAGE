@@ -8,6 +8,7 @@ import {
   History,
   Home,
   Menu,
+  QrCode,
   Search,
   Wrench,
   X,
@@ -60,6 +61,14 @@ export function Navbar() {
           >
             PDF Tools <ExternalLink size={13} />
           </a>
+          <a
+            className="qr-nav-link"
+            href="https://qrajn.online"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            QR AJN <ExternalLink size={13} />
+          </a>
         </nav>
         <div className="nav-actions">
           <Link href="/tools" className="nav-icon" title="Search image tools">
@@ -107,6 +116,13 @@ export function Navbar() {
               rel="noopener noreferrer"
             >
               AJN PDF Tools <ExternalLink size={14} />
+            </a>
+            <a
+              href="https://qrajn.online"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              QR AJN · qrajn.online <QrCode size={14} />
             </a>
             <Link href="/favorites" onClick={() => setOpen(false)}>
               Favorites <span>›</span>
@@ -163,8 +179,8 @@ export function Footer() {
         <div className="footer-brand">
           <Brand />
           <p>
-            Focused browser image tools with real target-size compression and
-            direct shortcuts to AJN PDF.
+            Focused browser image tools with exact-size compression plus direct
+            access to AJN PDF and QR AJN.
           </p>
         </div>
         <div>
@@ -175,27 +191,27 @@ export function Footer() {
           <Link href="/tools/convert">Convert</Link>
         </div>
         <div>
-          <b>AJN PDF</b>
+          <b>AJN Network</b>
           <a
             href="https://ajnpdf.com"
             target="_blank"
             rel="noopener noreferrer"
           >
-            All PDF Tools
+            AJN PDF
           </a>
           <a
-            href="https://ajnpdf.com/compress-pdf"
+            href="https://qrajn.online"
             target="_blank"
             rel="noopener noreferrer"
           >
-            Compress PDF
+            QR AJN
           </a>
           <a
-            href="https://ajnpdf.com/merge-pdf"
+            href="https://qrajn.online"
             target="_blank"
             rel="noopener noreferrer"
           >
-            Merge PDF
+            qrajn.online
           </a>
         </div>
         <div>

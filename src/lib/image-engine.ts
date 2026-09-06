@@ -203,7 +203,6 @@ function safeOutputType(
   requested: OutputFormat | undefined,
   inputType: string,
 ): OutputFormat {
-  if (id === "convert-to-jpg") return "image/jpeg";
   if (id === "jpg-to-png")
     return requested === "image/webp" ? "image/webp" : "image/png";
   if (requested) return requested;
@@ -578,11 +577,7 @@ export async function processImage(
       if (position === "center") ctx.rotate(-Math.PI / 8);
       ctx.fillText(text, 0, 0, decoded.width * 0.9);
       ctx.restore();
-    } else if (
-      id === "convert" ||
-      id === "convert-to-jpg" ||
-      id === "jpg-to-png"
-    ) {
+    } else if (id === "convert" || id === "jpg-to-png") {
       canvas = drawDecoded(decoded);
     } else {
       throw new Error(`Unsupported image tool: ${id}`);

@@ -3,7 +3,7 @@ import { IMAGE_TOOLS } from "@/lib/image-tools";
 export async function GET() {
   return Response.json({
     product: "AJN Buzz Image",
-    version: "5.3.0",
+    version: "5.4.0",
     public_tools: IMAGE_TOOLS.length,
     processing: "browser-local",
     target_size_compression: true,
@@ -11,6 +11,7 @@ export async function GET() {
     ads_txt: true,
     sitemap_registry_sync: true,
     remove_watermark_local_inpainting: true,
+    html_to_image_local_rendering: true,
     output_validation: true,
     all_tools_explicit: true,
     stale_selection_fix: true,
@@ -18,6 +19,7 @@ export async function GET() {
     compression_aspect_fix: true,
     recovery_pages: true,
     pdf_shortcuts: "https://ajnpdf.com",
+    qr_ajn: "https://qrajn.online",
     account_required: false,
     batch_limit: Number(process.env.NEXT_PUBLIC_IMAGE_BATCH_LIMIT || 20),
     max_input_mb: Number(process.env.NEXT_PUBLIC_IMAGE_MAX_INPUT_MB || 30),

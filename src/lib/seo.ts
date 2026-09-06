@@ -8,7 +8,7 @@ const configuredSiteUrl =
 export const SITE_URL = configuredSiteUrl.replace(/\/$/, "");
 export const SITE_NAME = "AJN Buzz";
 export const SITE_DESCRIPTION =
-  "Online image tools for compressing images to KB or MB, resizing, cropping, converting, editing, watermarking and more.";
+  "Online image tools for exact KB or MB compression, resizing, cropping, converting, editing, watermark cleanup, HTML to image and more.";
 export const DEFAULT_OG_IMAGE = "/brand/ajn-buzz-logo.png";
 
 export const BASE_IMAGE_KEYWORDS = [
@@ -31,7 +31,8 @@ export const BASE_IMAGE_KEYWORDS = [
   "watermark image",
   "upscale image",
   "rotate image",
-  "image to jpg",
+  "html to image",
+  "html to png",
   "jpg to png",
   "jpg to webp",
 ];

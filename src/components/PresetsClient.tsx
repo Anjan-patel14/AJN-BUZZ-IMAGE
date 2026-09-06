@@ -6,7 +6,8 @@ import { deletePreset, savedPresets, type SavedPreset } from "@/lib/tool-state";
 import { TOOL_MAP } from "@/lib/image-tools";
 export function PresetsClient() {
   const [list, setList] = useState<SavedPreset[]>([]);
-  const sync = () => setList(savedPresets());
+  const sync = () =>
+    setList(savedPresets().filter((item) => TOOL_MAP.has(item.tool)));
   useEffect(() => sync(), []);
   if (!list.length)
     return (

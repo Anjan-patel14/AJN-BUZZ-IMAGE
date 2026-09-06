@@ -1,54 +1,39 @@
-# AJN BUZZ IMAGE V5.3 — Logic + Output Reliability Release
+# AJN BUZZ IMAGE V5.4 — Concept Homepage + Logic + AJN Network
 
-Focused production browser image tools for `https://www.ajn.buzz`.
+Production-ready source package for `https://www.ajn.buzz`.
 
-## Public tools
+## V5.4 homepage implementation
+
+- Rebuilt the AJN Buzz homepage to match the approved modern concept: compact brand header, action-first hero, compression before/after example, fast/private/online benefit row, four large primary tool cards, compact secondary tools, live quick-compress workspace, AJN PDF promotion card, QR AJN / `qrajn.online` promotion card, and a concise AJN network footer tagline.
+- Added `qrajn.online` to desktop navigation, mobile navigation, footer, API config and the AJN Network homepage section.
+- Added a real homepage quick compressor with Auto and exact KB/MB target modes, current-file validation, original/final size reporting, reduction percentage, preview and download.
+- Added HTML to Image as a real browser-local tool and removed the legacy Image to JPG public workflow so the public catalog remains exactly 11 focused tools.
+- Kept Remove Watermark with local selected-area inpainting, repair-area clamping and oversized-region protection.
+- Retained target-size compression, image validation, output validation, browser dimension/memory limits, sequential batch processing, rotate/flip fixes, watermark validation and stale-result cleanup.
+- Preserved canonical SEO, structured data, sitemap, robots, permanent legacy redirects, AdSense seller records and recovery/error pages.
+- Login, Billing, Premium, Workspace, Firebase and Razorpay remain removed.
+
+## Public image tools
 
 1. Compress Image
 2. Resize Image
 3. Crop Image
 4. Convert Image
-5. Photo Editor
-6. Watermark Image
-7. Remove Watermark
-8. Upscale Image
-9. Rotate & Flip Image
-10. Image to JPG
+5. Remove Watermark
+6. Rotate & Flip Image
+7. Watermark Image
+8. Photo Editor
+9. Upscale Image
+10. HTML to Image
 11. JPG to PNG / WebP
 
-## V5.3 processing changes
+## AJN Network
 
-- Remove Background is replaced by Remove Watermark.
-- Remove Watermark uses selected-area local inpainting: boundary sampling, inward blending, smoothing and edge feathering.
-- Repair regions are clamped to image bounds and rejected when they cover more than 45% of the image.
-- Compress Image keeps real KB/MB target compression with quality search and aspect-ratio-safe dimension fallback.
-- Resize, Crop, Convert, Photo Editor, Watermark, Upscale, Rotate/Flip and dedicated JPG conversions remain explicit processors.
-- Shared image validation protects browser memory with maximum pixel and edge limits.
-- Encoded outputs are validated before they are exposed for preview/download.
-- Selecting another image clears stale output URLs and previous results.
-- Batch processing remains sequential to reduce browser memory spikes.
-- JPEG outputs flatten transparency onto white.
-- Unsupported tool IDs fail closed instead of using a generic processor.
-- UI theme, layout, cards, colors and AJN PDF shortcuts remain unchanged.
+- AJN PDF → `https://ajnpdf.com`
+- QR AJN → `https://qrajn.online`
 
-## Remove Watermark scope
+## Production safety gate
 
-Use Remove Watermark only on images you own or are allowed to edit. It is intended for small watermark, timestamp or logo regions. Local inpainting can produce strong results on simple or moderately textured areas, but it cannot perfectly reconstruct large marks over faces, text, detailed objects or complex repeating patterns.
+The included `SAFE_PUSH_AJN_BUZZ_V5_4.ps1` is fail-closed. It backs up the current Git repository, applies V5.4 without replacing `.env.local`, installs dependencies, runs formatting, source verification, logic tests, zero-warning ESLint, full TypeScript, a clean Next.js production build, optimized localhost route/API/sitemap/ads acceptance, Git integrity checks, and then pushes over GitHub SSH only if every gate passes.
 
-## Production gate
-
-Before GitHub push:
-
-```text
-npm install
-npm run verify
-npm run test:logic
-npm run lint
-npm run typecheck
-npm run build
-CHECK_LOCAL.ps1
-git diff --check
-SSH push
-```
-
-The supplied PowerShell push script stops before commit/push if any required gate fails.
+The artifact environment already passed source verification and pure logic tests. The Windows production script performs the dependency-backed final build and browser/server acceptance before GitHub push.

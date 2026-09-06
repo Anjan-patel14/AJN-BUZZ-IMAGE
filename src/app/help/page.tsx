@@ -19,7 +19,7 @@ const sections = [
   ],
   [
     "Other image tools",
-    "Resize, crop, convert, edit, watermark, rotate/flip and the other included workflows use explicit browser image logic. Supported non-compression tools can process several images when appropriate.",
+    "Resize, crop, convert, Remove Watermark, watermark, photo edit, upscale and rotate/flip use explicit browser image logic. HTML to Image safely renders supplied markup to PNG, JPG or WebP.",
   ],
   [
     "Supported formats",
@@ -30,8 +30,8 @@ const sections = [
     "Selected source images for these tools are decoded and transformed with browser APIs. No account is required.",
   ],
   [
-    "PDF tools",
-    "PDF shortcut cards intentionally open the corresponding AJN PDF workflow on ajnpdf.com.",
+    "AJN Network",
+    "AJN PDF shortcuts open ajnpdf.com for PDF workflows. QR AJN shortcuts open qrajn.online for QR creation and sharing.",
   ],
   [
     "Problems",

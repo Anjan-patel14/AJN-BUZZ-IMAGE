@@ -1,64 +1,69 @@
-$ErrorActionPreference='Stop'
-$P=Split-Path -Parent $MyInvocation.MyCommand.Path
-Set-Location $P
-Clear-Host
+﻿$ErrorActionPreference='Stop'
+$Repo=(Get-Location).Path
+
 Write-Host '============================================================' -ForegroundColor Cyan
-Write-Host ' AJN BUZZ IMAGE V5.3 :: PROFESSIONAL PRODUCTION PREVIEW' -ForegroundColor Cyan
-Write-Host ' STRONG SEO + REAL KB/MB COMPRESSION + LIVE SITEMAP' -ForegroundColor Cyan
-Write-Host ' NO LOGIN | NO BILLING | NO WORKSPACE' -ForegroundColor Yellow
+Write-Host ' AJN BUZZ IMAGE V5.4 :: CONCEPT + LOGIC PRODUCTION PREVIEW' -ForegroundColor Cyan
 Write-Host '============================================================' -ForegroundColor Cyan
 
-if(!(Get-Command node -ErrorAction SilentlyContinue)){throw 'Node.js is required.'}
-if(!(Get-Command npm.cmd -ErrorAction SilentlyContinue)){throw 'npm is required.'}
-if(!(Test-Path '.env.local')){Copy-Item '.env.example' '.env.local';Write-Host '[INFO] Created .env.local from safe example values.' -ForegroundColor Yellow}
+if(!(Test-Path (Join-Path $Repo 'package.json'))){throw 'Run this inside the AJN BUZZ project folder.'}
+$pkg=Get-Content (Join-Path $Repo 'package.json') -Raw | ConvertFrom-Json
+if($pkg.name -ne 'ajn-buzz-image' -or $pkg.version -ne '5.4.0'){throw "Expected AJN Buzz 5.4.0, found $($pkg.name) $($pkg.version)"}
 
-Write-Host '[INFO] Stopping stale AJN Buzz server on port 9010...' -ForegroundColor Cyan
-Get-NetTCPConnection -LocalPort 9010 -State Listen -ErrorAction SilentlyContinue | ForEach-Object{Stop-Process -Id $_.OwningProcess -Force -ErrorAction SilentlyContinue}
-Start-Sleep 1
+$env:ESLINT_USE_FLAT_CONFIG='false'
 
-$pkg=Get-Content '.\package.json' -Raw | ConvertFrom-Json
-if($pkg.version -ne '5.3.0'){throw "Expected AJN Buzz 5.3.0, found $($pkg.version)"}
-if($pkg.devDependencies.typescript -ne '5.7.3'){throw "Expected TypeScript 5.7.3, found $($pkg.devDependencies.typescript)"}
+Write-Host '[1/6] Dependencies...' -ForegroundColor Cyan
+npm.cmd install --include=dev --no-audit --no-fund
+if($LASTEXITCODE -ne 0){throw 'npm install failed'}
 
-$tsc=Join-Path $P 'node_modules\.bin\tsc.cmd'
-if(!(Test-Path $tsc)){
-  Write-Host '[INFO] Installing pinned packages including devDependencies...' -ForegroundColor Cyan
-  npm.cmd install --include=dev --no-audit --no-fund
-  if($LASTEXITCODE -ne 0){throw 'npm install failed'}
-}else{
-  Write-Host '[INFO] Reusing existing node_modules.' -ForegroundColor Green
+Write-Host '[2/6] Source + logic + lint + TypeScript...' -ForegroundColor Cyan
+npm.cmd run verify
+if($LASTEXITCODE -ne 0){throw 'Source verification failed'}
+npm.cmd run test:logic
+if($LASTEXITCODE -ne 0){throw 'Logic tests failed'}
+npm.cmd run lint
+if($LASTEXITCODE -ne 0){throw 'ESLint failed'}
+npm.cmd run typecheck
+if($LASTEXITCODE -ne 0){throw 'TypeScript failed'}
+
+Write-Host '[3/6] Clean optimized production build...' -ForegroundColor Cyan
+Remove-Item '.\.next' -Recurse -Force -ErrorAction SilentlyContinue
+npm.cmd run build
+if($LASTEXITCODE -ne 0){throw 'Next.js production build failed'}
+
+Write-Host '[4/6] Starting production server...' -ForegroundColor Cyan
+$Out=Join-Path $env:TEMP 'ajn_buzz_v54_start.out.log'
+$Err=Join-Path $env:TEMP 'ajn_buzz_v54_start.err.log'
+Remove-Item $Out,$Err -Force -ErrorAction SilentlyContinue
+$server=Start-Process -FilePath 'cmd.exe' -ArgumentList @('/c','npm run start') -WorkingDirectory $Repo -PassThru -RedirectStandardOutput $Out -RedirectStandardError $Err
+
+try{
+  $ready=$false
+  for($i=0;$i -lt 60;$i++){
+    Start-Sleep -Seconds 1
+    if($server.HasExited){break}
+    try{
+      $health=Invoke-RestMethod 'http://localhost:9010/api/health' -TimeoutSec 2
+      if($health.status -eq 'ok'){$ready=$true;break}
+    }catch{}
+  }
+  if(!$ready){
+    if(Test-Path $Out){Get-Content $Out -Tail 80}
+    if(Test-Path $Err){Get-Content $Err -Tail 80}
+    throw 'Production server did not become ready'
+  }
+
+  Write-Host '[5/6] Local production acceptance...' -ForegroundColor Cyan
+  & (Join-Path $Repo 'CHECK_LOCAL.ps1')
+  if($LASTEXITCODE -ne 0){throw 'Local production acceptance failed'}
+
+  Write-Host '[6/6] Browser URL...' -ForegroundColor Cyan
+  Write-Host 'http://localhost:9010' -ForegroundColor Green
+  Start-Process 'http://localhost:9010'
+  Write-Host '[PASS] AJN BUZZ V5.4 PRODUCTION PREVIEW READY' -ForegroundColor Green
+  Write-Host 'Press Ctrl+C when finished. The production server remains open in this PowerShell session.' -ForegroundColor Yellow
+
+  while(!$server.HasExited){Start-Sleep -Seconds 2}
 }
-if(!(Test-Path $tsc)){throw 'TypeScript CLI is missing after dependency install'}
-$tsVersion=& $tsc --version
-if($tsVersion -notmatch '5\.7\.3'){throw "Unexpected TypeScript version: $tsVersion"}
-Write-Host "[PASS] $tsVersion" -ForegroundColor Green
-
-if(Test-Path '.next'){Remove-Item '.next' -Recurse -Force -ErrorAction SilentlyContinue}
-Write-Host '[INFO] Running source verification + TypeScript + optimized Next.js build...' -ForegroundColor Cyan
-npm.cmd run check
-if($LASTEXITCODE -ne 0){throw 'AJN Buzz V5.3 production check failed'}
-Write-Host '[PASS] Source + TypeScript + production build complete' -ForegroundColor Green
-
-$server=Start-Process -FilePath 'cmd.exe' -ArgumentList @('/k',("cd /d `"{0}`" && npm.cmd run dev" -f $P)) -PassThru
-Write-Host '[INFO] Waiting for http://localhost:9010 ...' -ForegroundColor Cyan
-$ready=$false
-for($i=0;$i -lt 120;$i++){
-  try{$r=Invoke-WebRequest 'http://localhost:9010/api/health' -UseBasicParsing -TimeoutSec 3;if($r.StatusCode -eq 200){$ready=$true;break}}catch{}
-  Start-Sleep 1
+finally{
+  if($server -and !$server.HasExited){Stop-Process -Id $server.Id -Force -ErrorAction SilentlyContinue}
 }
-if(!$ready){throw 'AJN Buzz did not start. Check the dev-server CMD window.'}
-Write-Host '[PASS] Localhost READY' -ForegroundColor Green
-
-& "$P\CHECK_LOCAL.ps1"
-if($LASTEXITCODE -ne 0){throw 'Local acceptance failed'}
-
-Write-Host ''
-Write-Host 'Home      : http://localhost:9010' -ForegroundColor Green
-Write-Host 'Compress  : http://localhost:9010/tools/compress'
-Write-Host 'Tools     : http://localhost:9010/tools'
-Write-Host 'Sitemap   : http://localhost:9010/sitemap.xml'
-Write-Host 'Robots    : http://localhost:9010/robots.txt'
-Write-Host 'Ads.txt   : http://localhost:9010/ads.txt'
-Write-Host ''
-Write-Host '[PASS] AJN BUZZ IMAGE V5.3 PRODUCTION PREVIEW READY' -ForegroundColor Green
-Start-Process 'http://localhost:9010'

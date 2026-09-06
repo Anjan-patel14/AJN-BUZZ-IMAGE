@@ -58,7 +58,12 @@ const nextConfig = {
       },
       {
         source: "/image-to-jpg",
-        destination: "/tools/convert-to-jpg",
+        destination: "/tools/convert",
+        permanent: true,
+      },
+      {
+        source: "/html-to-image",
+        destination: "/tools/html-to-image",
         permanent: true,
       },
       {

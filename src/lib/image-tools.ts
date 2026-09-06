@@ -10,7 +10,7 @@ export type ToolId =
   | "remove-watermark"
   | "upscale"
   | "rotate"
-  | "convert-to-jpg"
+  | "html-to-image"
   | "jpg-to-png";
 
 export type ToolFaq = {
@@ -72,12 +72,8 @@ export const IMAGE_TOOLS: ImageTool[] = [
       "compress image to 50kb",
       "compress image to 100kb",
       "compress image to 200kb",
-      "compress image to 300kb",
       "compress image to 500kb",
       "compress image to 1mb",
-      "compress image to 2mb",
-      "compress photo for online form",
-      "compress passport photo",
       "compress image without losing quality",
     ],
     useCases: ["Online forms", "Email attachments", "Passport photos"],
@@ -110,7 +106,7 @@ export const IMAGE_TOOLS: ImageTool[] = [
     id: "resize",
     name: "Resize Image",
     shortName: "Resize",
-    summary: "Change width and height in pixels.",
+    summary: "Change image dimensions easily.",
     description:
       "Resize JPG, PNG, WebP or SVG images to exact pixel dimensions. Keep the aspect ratio locked when you want proportions preserved.",
     seoTitle: "Resize Image Online — Change Width & Height in Pixels",
@@ -129,11 +125,9 @@ export const IMAGE_TOOLS: ImageTool[] = [
       "resize photo",
       "change image dimensions",
       "resize jpg",
-      "resize jpeg",
       "resize png",
       "resize webp",
       "resize image pixels",
-      "change width height image",
     ],
     useCases: ["Website images", "Social posts", "Form uploads"],
     steps: [
@@ -158,7 +152,7 @@ export const IMAGE_TOOLS: ImageTool[] = [
     id: "crop",
     name: "Crop Image",
     shortName: "Crop",
-    summary: "Trim an image to exact coordinates.",
+    summary: "Focus on what matters.",
     description:
       "Crop JPG, PNG or WebP using X, Y, width and height controls. The crop is clamped safely to the selected image bounds.",
     seoTitle: "Crop Image Online — Crop JPG, PNG & WebP",
@@ -175,11 +169,9 @@ export const IMAGE_TOOLS: ImageTool[] = [
       "crop photo",
       "image cropper",
       "crop jpg",
-      "crop jpeg",
       "crop png",
       "crop webp",
       "trim image",
-      "crop picture online",
     ],
     useCases: [
       "Remove unwanted edges",
@@ -199,7 +191,7 @@ export const IMAGE_TOOLS: ImageTool[] = [
     id: "convert",
     name: "Convert Image",
     shortName: "Convert",
-    summary: "Convert between JPG, PNG and WebP.",
+    summary: "JPG, PNG, WebP and more.",
     description:
       "Convert browser-supported images to JPG, PNG or WebP. Choose the output format and quality, then preview the converted file.",
     seoTitle: "Image Converter Online — JPG, PNG & WebP",
@@ -220,7 +212,6 @@ export const IMAGE_TOOLS: ImageTool[] = [
       "convert png to jpg",
       "convert webp to jpg",
       "convert jpg to webp",
-      "image format converter",
     ],
     useCases: ["Change file format", "Prepare web images", "Convert photos"],
     steps: [
@@ -233,80 +224,6 @@ export const IMAGE_TOOLS: ImageTool[] = [
         question: "Which output formats are available?",
         answer:
           "The general image converter outputs JPG, PNG or WebP. Source decoding depends on modern browser support.",
-      },
-    ],
-  },
-  {
-    id: "photo-editor",
-    name: "Photo Editor",
-    shortName: "Photo Editor",
-    summary: "Adjust brightness, contrast, color and blur.",
-    description:
-      "Make focused photo adjustments with brightness, contrast, saturation and blur controls. Preview changes before downloading.",
-    seoTitle: "Photo Editor Online — Brightness, Contrast, Color & Blur",
-    seoDescription:
-      "Edit photo brightness, contrast, saturation and blur online. Preview adjustments and download the edited image with AJN Buzz.",
-    icon: "SlidersHorizontal",
-    category: "Edit",
-    formats: "JPG · PNG · WebP",
-    featured: true,
-    badge: "Simple",
-    local: true,
-    seoKeywords: [
-      "photo editor online",
-      "edit image online",
-      "image editor",
-      "brightness image",
-      "contrast image",
-      "saturation image",
-      "blur image",
-      "photo adjustments",
-    ],
-    useCases: ["Fix dark photos", "Improve contrast", "Add blur"],
-    steps: ["Select an image.", "Adjust the sliders.", "Preview and download."],
-    faq: [
-      {
-        question: "Which adjustments are included?",
-        answer:
-          "Brightness, contrast, saturation and blur are available with live preview.",
-      },
-    ],
-  },
-  {
-    id: "watermark",
-    name: "Watermark Image",
-    shortName: "Watermark",
-    summary: "Add a text watermark with position controls.",
-    description:
-      "Add your own text watermark to JPG, PNG or WebP. Control text, color, size, opacity and position before downloading.",
-    seoTitle: "Add Watermark to Image Online",
-    seoDescription:
-      "Add a text watermark to JPG, PNG or WebP images. Choose text, color, size, opacity and position with AJN Buzz.",
-    icon: "Stamp",
-    category: "Edit",
-    formats: "JPG · PNG · WebP",
-    featured: true,
-    local: true,
-    seoKeywords: [
-      "watermark image",
-      "watermark image online",
-      "add watermark to photo",
-      "text watermark",
-      "watermark jpg",
-      "watermark png",
-      "photo watermark",
-    ],
-    useCases: ["Brand photos", "Mark previews", "Add ownership text"],
-    steps: [
-      "Select an image.",
-      "Enter watermark text and style.",
-      "Process and download.",
-    ],
-    faq: [
-      {
-        question: "Can I choose where the watermark appears?",
-        answer:
-          "Yes. Choose the center or one of the four corners, then adjust text, size, color and opacity.",
       },
     ],
   },
@@ -340,58 +257,14 @@ export const IMAGE_TOOLS: ImageTool[] = [
     ],
     steps: [
       "Select an image you are allowed to edit.",
-      "Set the watermark X, Y, width and height or choose a position preset.",
+      "Set the watermark area tightly.",
       "Choose repair strength, process and download.",
     ],
     faq: [
       {
         question: "How does Remove Watermark work?",
         answer:
-          "AJN Buzz repairs only the selected rectangle by sampling pixels around its boundary, blending them inward and smoothing the repaired area. It works best on small overlays and simple or moderately textured backgrounds.",
-      },
-      {
-        question: "Will it perfectly reconstruct every photo?",
-        answer:
-          "No. Large marks over faces, text, detailed objects or complex patterns can require a smaller selection or a dedicated content-aware model. AJN Buzz reports limits instead of pretending a perfect result.",
-      },
-    ],
-  },
-  {
-    id: "upscale",
-    name: "Upscale Image",
-    shortName: "Upscale",
-    summary: "Enlarge an image 2×, 3× or 4×.",
-    description:
-      "Enlarge JPG, PNG or WebP 2×, 3× or 4× with high-quality browser resampling. Large outputs are checked against safe browser limits.",
-    seoTitle: "Upscale Image Online — Enlarge 2x, 3x or 4x",
-    seoDescription:
-      "Upscale JPG, PNG or WebP images 2x, 3x or 4x with high-quality browser resampling. Preview and download with AJN Buzz.",
-    icon: "Maximize2",
-    category: "Optimize",
-    formats: "JPG · PNG · WebP",
-    featured: true,
-    local: true,
-    seoKeywords: [
-      "upscale image",
-      "upscale image online",
-      "enlarge image",
-      "enlarge photo",
-      "2x image upscale",
-      "3x image upscale",
-      "4x image upscale",
-      "resize image larger",
-    ],
-    useCases: ["Larger previews", "Print preparation", "Presentation images"],
-    steps: [
-      "Select an image.",
-      "Choose 2×, 3× or 4×.",
-      "Upscale and download.",
-    ],
-    faq: [
-      {
-        question: "Is this generative AI upscaling?",
-        answer:
-          "No. This tool uses high-quality browser resampling and does not invent new visual detail.",
+          "AJN Buzz repairs only the selected area using surrounding image pixels. Best results come from tight selections over simple or moderately textured backgrounds.",
       },
     ],
   },
@@ -401,10 +274,10 @@ export const IMAGE_TOOLS: ImageTool[] = [
     shortName: "Rotate & Flip",
     summary: "Rotate or flip an image.",
     description:
-      "Rotate JPG, PNG or WebP by 0°, 90°, 180° or 270°, then optionally flip horizontally or vertically.",
-    seoTitle: "Rotate or Flip Image Online",
+      "Rotate an image by 0°, 90°, 180° or 270° and optionally flip it horizontally or vertically without clipping.",
+    seoTitle: "Rotate & Flip Image Online",
     seoDescription:
-      "Rotate images 90, 180 or 270 degrees, flip horizontally or vertically, or flip without rotation using AJN Buzz.",
+      "Rotate images 90, 180 or 270 degrees and flip horizontally or vertically online with AJN Buzz.",
     icon: "RotateCw",
     category: "Edit",
     formats: "JPG · PNG · WebP",
@@ -414,66 +287,176 @@ export const IMAGE_TOOLS: ImageTool[] = [
       "rotate image",
       "rotate image online",
       "flip image",
-      "rotate photo 90 degrees",
-      "flip jpg",
+      "flip photo",
+      "rotate jpg",
       "rotate png",
-      "mirror image online",
-      "flip photo online",
     ],
-    useCases: ["Fix orientation", "Mirror images", "Rotate scans"],
+    useCases: ["Fix orientation", "Mirror images", "Rotate screenshots"],
     steps: [
       "Select an image.",
-      "Choose rotation and flip.",
+      "Choose rotation and optional flip.",
       "Process and download.",
     ],
     faq: [
       {
         question: "Can I flip without rotating?",
-        answer:
-          "Yes. Choose 0° rotation and then select a horizontal or vertical flip.",
+        answer: "Yes. Choose 0° and then select horizontal or vertical flip.",
       },
     ],
   },
   {
-    id: "convert-to-jpg",
-    name: "Image to JPG",
-    shortName: "Image to JPG",
-    summary: "Convert an image to JPEG.",
+    id: "watermark",
+    name: "Watermark Image",
+    shortName: "Watermark",
+    summary: "Add text or branding.",
     description:
-      "Convert PNG, WebP, SVG and other browser-supported images to JPG. Transparent areas are flattened safely onto white.",
-    seoTitle: "Convert Image to JPG Online — PNG, WebP & SVG to JPG",
+      "Add your own text watermark to JPG, PNG or WebP. Control text, color, size, opacity and position before downloading.",
+    seoTitle: "Add Watermark to Image Online",
     seoDescription:
-      "Convert PNG, WebP, SVG and browser-supported images to JPG online. Transparent areas are flattened onto white by AJN Buzz.",
-    icon: "FileImage",
-    category: "Convert",
-    formats: "PNG · WebP · SVG → JPG",
+      "Add a text watermark to JPG, PNG or WebP images. Choose text, color, size, opacity and position with AJN Buzz.",
+    icon: "Stamp",
+    category: "Edit",
+    formats: "JPG · PNG · WebP",
     featured: true,
     local: true,
     seoKeywords: [
-      "image to jpg",
-      "image to jpg online",
-      "png to jpg",
-      "webp to jpg",
-      "svg to jpg",
-      "convert image to jpeg",
-      "photo to jpg",
-      "convert png to jpeg",
+      "watermark image",
+      "watermark image online",
+      "add watermark to photo",
+      "text watermark",
+      "watermark jpg",
+      "watermark png",
     ],
-    useCases: [
-      "Convert PNG to JPG",
-      "Convert WebP to JPG",
-      "Prepare JPEG uploads",
-    ],
+    useCases: ["Brand photos", "Mark previews", "Add ownership text"],
     steps: [
       "Select an image.",
-      "Choose output quality.",
-      "Convert and download JPG.",
+      "Enter watermark text and style.",
+      "Process and download.",
     ],
     faq: [
       {
-        question: "What happens to transparent pixels?",
+        question: "Can I choose where the watermark appears?",
         answer:
-          "JPEG does not support transparency, so transparent areas are flattened onto a white background.",
+          "Yes. Choose the center or one of the four corners, then adjust text, size, color and opacity.",
+      },
+    ],
+  },
+  {
+    id: "photo-editor",
+    name: "Photo Editor",
+    shortName: "Photo Editor",
+    summary: "Brightness, contrast, color and blur.",
+    description:
+      "Make focused photo adjustments with brightness, contrast, saturation and blur controls. Preview changes before downloading.",
+    seoTitle: "Photo Editor Online — Brightness, Contrast, Color & Blur",
+    seoDescription:
+      "Edit photo brightness, contrast, saturation and blur online. Preview adjustments and download the edited image with AJN Buzz.",
+    icon: "SlidersHorizontal",
+    category: "Edit",
+    formats: "JPG · PNG · WebP",
+    featured: true,
+    badge: "Simple",
+    local: true,
+    seoKeywords: [
+      "photo editor online",
+      "edit image online",
+      "image editor",
+      "brightness image",
+      "contrast image",
+      "saturation image",
+      "blur image",
+    ],
+    useCases: ["Fix dark photos", "Improve contrast", "Add blur"],
+    steps: ["Select an image.", "Adjust the sliders.", "Preview and download."],
+    faq: [
+      {
+        question: "Which adjustments are included?",
+        answer:
+          "Brightness, contrast, saturation and blur are available with live preview.",
+      },
+    ],
+  },
+  {
+    id: "upscale",
+    name: "Upscale Image",
+    shortName: "Upscale",
+    summary: "Increase image dimensions safely.",
+    description:
+      "Upscale images by 2×, 3× or 4× with high-quality browser resampling and safety checks before large canvases are allocated.",
+    seoTitle: "Upscale Image Online — 2×, 3× or 4×",
+    seoDescription:
+      "Increase image dimensions by 2×, 3× or 4× online with high-quality browser resampling and safe output limits.",
+    icon: "Maximize2",
+    category: "Optimize",
+    formats: "JPG · PNG · WebP",
+    featured: true,
+    local: true,
+    seoKeywords: [
+      "upscale image",
+      "upscale image online",
+      "increase image resolution",
+      "enlarge image",
+      "2x image",
+      "4x image",
+    ],
+    useCases: [
+      "Larger exports",
+      "Print preparation",
+      "High-resolution layouts",
+    ],
+    steps: [
+      "Select an image.",
+      "Choose 2×, 3× or 4×.",
+      "Upscale and download.",
+    ],
+    faq: [
+      {
+        question: "Is this generative AI upscaling?",
+        answer:
+          "No. It uses high-quality browser resampling and does not claim to invent new visual details.",
+      },
+    ],
+  },
+  {
+    id: "html-to-image",
+    name: "HTML to Image",
+    shortName: "HTML to Image",
+    summary: "Turn HTML into PNG, JPG or WebP.",
+    description:
+      "Render safe HTML markup into a downloadable PNG, JPG or WebP image directly in your browser. Control canvas size and background color.",
+    seoTitle: "HTML to Image Online — Convert HTML to PNG, JPG or WebP",
+    seoDescription:
+      "Convert HTML markup to PNG, JPG or WebP online. Choose image size, background and format, preview the rendered image and download with AJN Buzz.",
+    icon: "Code2",
+    category: "Convert",
+    formats: "HTML → PNG · JPG · WebP",
+    featured: true,
+    badge: "New",
+    local: true,
+    seoKeywords: [
+      "html to image",
+      "html to png",
+      "html to jpg",
+      "html to webp",
+      "convert html to image",
+      "render html to png",
+    ],
+    useCases: ["Social graphics", "Code-generated cards", "HTML previews"],
+    steps: [
+      "Enter or paste HTML.",
+      "Choose image size, background and output format.",
+      "Render, preview and download.",
+    ],
+    faq: [
+      {
+        question: "Does HTML to Image run on a server?",
+        answer:
+          "No. AJN Buzz sanitizes the markup and renders it in your browser using SVG foreignObject and Canvas.",
+      },
+      {
+        question: "Can scripts run inside my HTML?",
+        answer:
+          "No. Script-like tags, event handlers and javascript: URLs are removed before rendering.",
       },
     ],
   },
@@ -499,8 +482,6 @@ export const IMAGE_TOOLS: ImageTool[] = [
       "jpg to webp",
       "jpeg to webp",
       "convert jpg",
-      "jpg converter online",
-      "convert jpeg to png",
     ],
     useCases: ["JPG to PNG", "JPG to WebP", "Change JPEG format"],
     steps: [

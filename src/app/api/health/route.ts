@@ -4,7 +4,7 @@ export async function GET() {
   return Response.json({
     status: "ok",
     product: "AJN Buzz Image",
-    version: "5.3.0",
+    version: "5.4.0",
     public_tools: IMAGE_TOOLS.length,
     processing: "browser-local",
     target_size_compression: true,
@@ -12,6 +12,7 @@ export async function GET() {
     ads_txt: true,
     sitemap_registry_sync: true,
     remove_watermark_local_inpainting: true,
+    html_to_image_local_rendering: true,
     output_validation: true,
     dimension_safety: true,
     batch_processing: true,

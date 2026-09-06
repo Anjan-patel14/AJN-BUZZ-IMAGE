@@ -16,9 +16,9 @@ export default function About() {
           <h1 className="page-title">A focused image utility product.</h1>
           <p className="lead">
             AJN Buzz Image is designed around one principle: image work should
-            stay image work. The catalog avoids mixing PDFs, QR codes,
-            calculators, audio or unrelated document utilities into the same
-            product.
+            stay image work. The core catalog stays focused on image work, while
+            AJN PDF and QR AJN are promoted as clearly separated external AJN
+            Network products.
           </p>
           <div className="help-stack">
             <section className="help-card">
@@ -38,10 +38,10 @@ export default function About() {
             <section className="help-card">
               <h2>Capability honesty</h2>
               <p>
-                Tools are named after what they actually do. High-quality
-                resampling is not marketed as generative AI, and simple
-                background colour removal is not represented as universal object
-                segmentation.
+                Tools are named after what they actually do. Upscale uses
+                high-quality resampling, Remove Watermark repairs only a
+                selected area, and HTML to Image sanitizes markup before local
+                rendering.
               </p>
             </section>
           </div>

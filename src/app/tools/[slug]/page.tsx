@@ -5,6 +5,7 @@ import { notFound } from "next/navigation";
 import { Page } from "@/components/Shell";
 import { AdSlot } from "@/components/AdSlot";
 import { ImageEditor } from "@/components/ImageEditor";
+import { HtmlToImageEditor } from "@/components/HtmlToImageEditor";
 import { IMAGE_TOOLS, TOOL_MAP, type ToolId } from "@/lib/image-tools";
 import { ToolIcon } from "@/components/ToolIcon";
 import { buildPageMetadata, SITE_URL } from "@/lib/seo";
@@ -135,7 +136,11 @@ export default async function ToolPage({
             </div>
           </div>
 
-          <ImageEditor tool={tool} />
+          {tool.id === "html-to-image" ? (
+            <HtmlToImageEditor tool={tool} />
+          ) : (
+            <ImageEditor tool={tool} />
+          )}
           <AdSlot slot={`tool-${tool.id}`} />
 
           <section

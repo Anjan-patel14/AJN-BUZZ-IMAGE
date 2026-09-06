@@ -2,7 +2,7 @@ import { buildPageMetadata } from "@/lib/seo";
 export const metadata = buildPageMetadata({
   title: "AJN Buzz FAQ",
   description:
-    "Answers about target-size image compression, formats, browser privacy, watermark removal and PDF shortcuts.",
+    "Answers about target-size image compression, formats, browser privacy, Remove Watermark, HTML to Image and AJN Network shortcuts.",
   path: "/faq",
   index: true,
 });
@@ -37,8 +37,12 @@ const items = [
     "Select only the watermark, timestamp or logo rectangle. AJN Buzz reconstructs that area from surrounding pixels with local inpainting and edge blending. It works best on small overlays and does not pretend to perfectly rebuild every complex texture.",
   ],
   [
-    "Why are PDF tools shown here?",
-    "They are shortcuts. Clicking a PDF card opens the matching workflow on ajnpdf.com instead of running a duplicate PDF processor in AJN Buzz.",
+    "How does HTML to Image work?",
+    "Paste or write HTML, choose the canvas size and output format, and AJN Buzz sanitizes the markup before rendering it locally through SVG and Canvas. Scripts, event handlers and remote source URLs are removed.",
+  ],
+  [
+    "Why are AJN PDF and QR AJN shown here?",
+    "They are AJN Network shortcuts. PDF actions open ajnpdf.com, while QR AJN opens qrajn.online for QR creation and sharing.",
   ],
 ];
 export default function FAQ() {

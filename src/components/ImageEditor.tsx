@@ -4,7 +4,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import JSZip from "jszip";
 import {
-  Check,
   Download,
   Eye,
   FileArchive,
@@ -128,9 +127,6 @@ export function ImageEditor({ tool }: { tool: ImageTool }) {
     ? 1
     : configuredBatch;
 
-  const forcedType: OutputFormat | null =
-    tool.id === "convert-to-jpg" ? "image/jpeg" : null;
-
   useEffect(() => {
     markRecentTool(tool.id);
   }, [tool.id]);
@@ -180,9 +176,9 @@ export function ImageEditor({ tool }: { tool: ImageTool }) {
   const effectiveOptions = useMemo<ImageOptions>(
     () => ({
       ...options,
-      format: forcedType || options.format,
+      format: options.format,
     }),
-    [options, forcedType],
+    [options],
   );
 
   const targetBytes = useMemo(() => {
@@ -265,9 +261,7 @@ export function ImageEditor({ tool }: { tool: ImageTool }) {
       setRatio(dimensions.width / dimensions.height);
       setSourceDims(dimensions);
       setOptions((current) => {
-        const preserve = !["convert", "convert-to-jpg", "jpg-to-png"].includes(
-          tool.id,
-        );
+        const preserve = !["convert", "jpg-to-png"].includes(tool.id);
         const nextFormat = preserve
           ? sourceFormat(first) || current.format
           : current.format;
@@ -602,7 +596,7 @@ export function ImageEditor({ tool }: { tool: ImageTool }) {
     firstResult && firstSource && firstSource.size > 0
       ? Math.round((1 - firstResult.blob.size / firstSource.size) * 100)
       : null;
-  const selectedFormat = forcedType || effectiveOptions.format || "image/webp";
+  const selectedFormat = effectiveOptions.format || "image/webp";
   const showQuality = tool.id !== "compress" && selectedFormat !== "image/png";
   const actionLabel =
     tool.id === "compress"
@@ -1161,7 +1155,7 @@ export function ImageEditor({ tool }: { tool: ImageTool }) {
                 <option value="image/webp">WebP</option>
               </select>
             </div>
-          ) : !forcedType ? (
+          ) : (
             <div className="field">
               <label>Output format</label>
               <select
@@ -1177,11 +1171,6 @@ export function ImageEditor({ tool }: { tool: ImageTool }) {
                 <option value="image/jpeg">JPEG</option>
                 <option value="image/png">PNG</option>
               </select>
-            </div>
-          ) : (
-            <div className="locked-format">
-              <Check size={16} />
-              <span>Output fixed to {outputExt(forcedType).toUpperCase()}</span>
             </div>
           )
         ) : null}

@@ -2,7 +2,7 @@ import { buildPageMetadata } from "@/lib/seo";
 export const metadata = buildPageMetadata({
   title: "Image Tool Features",
   description:
-    "Explore AJN Buzz target-size compression, browser image processing, live previews and AJN PDF shortcuts.",
+    "Explore AJN Buzz target-size compression, browser image processing, HTML to Image, Remove Watermark and AJN Network shortcuts.",
   path: "/features",
   index: true,
 });
@@ -35,17 +35,17 @@ const features = [
   [
     BadgeCheck,
     "Accurate capability claims",
-    "Background removal is described as flat-colour removal and Upscale as high-quality resampling rather than fake AI.",
+    "Remove Watermark repairs only a selected area, HTML to Image is browser-rendered, and Upscale is described as high-quality resampling rather than fake AI.",
   ],
   [
     ExternalLink,
-    "AJN PDF shortcuts",
-    "PDF cards open the matching workflow on ajnpdf.com instead of duplicating PDF processors inside AJN Buzz.",
+    "AJN Network shortcuts",
+    "AJN PDF opens PDF workflows on ajnpdf.com and QR AJN opens QR creation tools on qrajn.online.",
   ],
   [
     Zap,
-    "AJN PDF visual system",
-    "Desktop and mobile surfaces retain the same Manrope/Inter typography, cards, colours and ambient styling.",
+    "Professional AJN visual system",
+    "Desktop and mobile surfaces use the same Manrope/Inter typography, premium cards, focused actions and responsive styling.",
   ],
 ] as const;
 export default function Features() {
@@ -83,6 +83,14 @@ export default function Features() {
               rel="noopener noreferrer"
             >
               Open AJN PDF
+            </a>
+            <a
+              className="btn"
+              href="https://qrajn.online"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              Open QR AJN
             </a>
           </div>
         </div>
