@@ -22,24 +22,32 @@ export function AdSlot({ slot = "home" }: { slot?: string }) {
   const slotId = slot.startsWith("tool-")
     ? process.env.NEXT_PUBLIC_ADSENSE_SLOT_TOOL || ""
     : process.env.NEXT_PUBLIC_ADSENSE_SLOT_HOME || "";
+  const potentiallyEnabled =
+    process.env.NODE_ENV === "production" &&
+    process.env.NEXT_PUBLIC_ADS_ENABLED === "true" &&
+    Boolean(client) &&
+    Boolean(slotId) &&
+    isBuzzAdEligiblePath(pathname);
 
   useEffect(() => {
     const sync = () => {
       const host = window.location.hostname.toLowerCase();
       const productionHost = host === "ajn.buzz" || host === "www.ajn.buzz";
       setAllowed(
-        process.env.NODE_ENV === "production" &&
-          process.env.NEXT_PUBLIC_ADS_ENABLED === "true" &&
+        potentiallyEnabled &&
           productionHost &&
-          localStorage.getItem("ajn_buzz_cookie_consent") === "accepted" &&
-          isBuzzAdEligiblePath(window.location.pathname),
+          localStorage.getItem("ajn_buzz_cookie_consent") === "accepted",
       );
     };
     sync();
     window.addEventListener("ajn-buzz-cookie-consent-changed", sync);
     return () =>
       window.removeEventListener("ajn-buzz-cookie-consent-changed", sync);
-  }, [pathname]);
+  }, [pathname, potentiallyEnabled]);
+
+  useEffect(() => {
+    initialized.current = false;
+  }, [pathname, slotId]);
 
   useEffect(() => {
     if (!allowed || !client || !slotId) return;
@@ -57,19 +65,28 @@ export function AdSlot({ slot = "home" }: { slot?: string }) {
     return () => window.removeEventListener(ADS_READY_EVENT, request);
   }, [allowed, client, slotId]);
 
-  if (!allowed || !client || !slotId) return null;
+  if (!potentiallyEnabled) return null;
+
   return (
-    <aside className="ad ajn-ad-zone" aria-label="Advertisement">
+    <aside
+      className="ad ajn-ad-zone"
+      aria-label="Advertisement"
+      style={{ minHeight: 140 }}
+    >
       <span>Advertisement</span>
-      <ins
-        ref={ref}
-        className="adsbygoogle"
-        style={{ display: "block", width: "100%" }}
-        data-ad-client={client}
-        data-ad-slot={slotId}
-        data-ad-format="auto"
-        data-full-width-responsive="true"
-      />
+      {allowed ? (
+        <ins
+          ref={ref}
+          className="adsbygoogle"
+          style={{ display: "block", width: "100%", minHeight: 100 }}
+          data-ad-client={client}
+          data-ad-slot={slotId}
+          data-ad-format="auto"
+          data-full-width-responsive="true"
+        />
+      ) : (
+        <div className="ad-reserved-space" aria-hidden="true" />
+      )}
     </aside>
   );
 }

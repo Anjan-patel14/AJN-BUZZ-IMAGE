@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Inter, JetBrains_Mono, Manrope } from "next/font/google";
 import "./globals.css";
 import "./ambient-light.css";
+import "./production-v7.css";
 import { AmbientBackground } from "@/components/AmbientBackground";
 import { AdSenseScriptLoader } from "@/components/AdSenseScriptLoader";
 import { CookieConsent } from "@/components/CookieConsent";

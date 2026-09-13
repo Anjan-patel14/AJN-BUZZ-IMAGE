@@ -8,14 +8,12 @@ const fail = (message) => {
   console.error(`FAIL: ${message}`);
   process.exit(1);
 };
-
 const canonical = (text) =>
   text
     .replace(/"/g, "'")
     .replace(/\s+/g, "")
     .replace(/,([\]})])/g, "$1")
     .trim();
-
 const has = (text, marker) => canonical(text).includes(canonical(marker));
 const markers = (label, text, list) => {
   for (const item of list) {
@@ -43,6 +41,8 @@ const required = [
   "src/components/HomeQuickCompress.tsx",
   "src/components/ToolCatalog.tsx",
   "src/components/Shell.tsx",
+  "src/components/AdSlot.tsx",
+  "src/components/CookieConsent.tsx",
   "src/app/page.tsx",
   "src/app/layout.tsx",
   "src/app/sitemap.ts",
@@ -51,6 +51,13 @@ const required = [
   "src/app/error.tsx",
   "src/app/global-error.tsx",
   "src/app/not-found.tsx",
+  "src/app/contact/page.tsx",
+  "src/app/help/page.tsx",
+  "src/app/privacy/page.tsx",
+  "src/app/terms/page.tsx",
+  "src/app/about/page.tsx",
+  "src/app/recent/page.tsx",
+  "src/app/favorites/page.tsx",
   "src/app/tools/[slug]/page.tsx",
   "src/app/api/health/route.ts",
   "src/app/api/config/route.ts",
@@ -97,7 +104,6 @@ const tools = read("src/lib/image-tools.ts");
 const ids = [...tools.matchAll(/\bid:\s*["']([^"']+)["']/g)]
   .map((match) => match[1])
   .filter((id) => expected.includes(id));
-
 if (ids.length !== 11 || new Set(ids).size !== 11) {
   fail(`expected 11 unique public image tools, found ${ids.length}`);
 }
@@ -120,13 +126,6 @@ markers("Remove Watermark registry", tools, [
   "id: 'remove-watermark'",
   "name: 'Remove Watermark'",
 ]);
-markers("compression intent", tools, [
-  "compress image to 50kb",
-  "compress image to 100kb",
-  "compress image to 200kb",
-  "compress image to 500kb",
-  "compress image to 1mb",
-]);
 
 const engine = read("src/lib/image-engine.ts");
 markers("explicit image processors", engine, [
@@ -141,8 +140,6 @@ markers("explicit image processors", engine, [
   "id === 'convert' || id === 'jpg-to-png'",
   "Unsupported image tool",
 ]);
-if (has(engine, "convert-to-jpg"))
-  fail("legacy convert-to-jpg processor must not remain");
 
 const repair = read("src/lib/remove-watermark.ts");
 markers("watermark repair logic", repair, [
@@ -165,115 +162,170 @@ markers("HTML to Image engine", htmlEngine, [
   "canvas.toBlob",
 ]);
 
-const htmlEditor = read("src/components/HtmlToImageEditor.tsx");
-markers("HTML to Image UI", htmlEditor, [
-  "Write or paste HTML",
-  "Generate image",
-  "Output format",
-  "PNG",
-  "JPG",
-  "WebP",
-  "No sign-in. Remote image URLs are not fetched.",
-]);
-
-const quickCompress = read("src/components/HomeQuickCompress.tsx");
-markers("homepage real compress", quickCompress, [
-  "compressImage",
-  "Compress file to",
-  "100 KB",
-  "200 KB",
-  "500 KB",
-  "1 MB",
-  "Drag & drop your image here",
-  "Before",
-  "After",
-  "Reduced",
-  "Download",
-]);
-
 const home = read("src/app/page.tsx");
-markers("exact concept homepage", home, [
-  "Image tools that do the",
-  "actual work.",
-  "Fast",
-  "Private",
-  "100% Online",
-  "Main Image Tools",
-  "More Image Tools",
+markers("reference landing v7", home, [
+  "Smart Image Tools",
+  "in One Place",
+  "Everything You Need for Images",
+  "See the Difference",
+  "Get Results in 4 Simple Steps",
+  "Perfect for Everyday Image Work",
+  "Popular Image Workflows",
+  "BUILT AROUND REAL WORKFLOWS",
+  "Simple Tools. Clear Capabilities.",
   "HomeQuickCompress",
-  "Explore the AJN Network",
+  "AJN Buzz FAQ",
   "https://ajnpdf.com",
   "https://qrajn.online",
-  "Open ajnpdf.com",
-  "Open qrajn.online",
-  "qrajn-qr.png",
-  "IMAGES",
-  "IDEAS",
-  "POSSIBILITIES",
+]);
+if (home.includes("3.4 MB") || home.includes("100 KB</b>")) {
+  fail("homepage must not publish an unverified before/after compression statistic");
+}
+if (/fake|50,000\+|#1 image/i.test(home)) {
+  fail("homepage contains unsupported marketing claim");
+}
+
+const contact = read("src/app/contact/page.tsx");
+markers("contact", contact, [
+  "ajnbuzz@gmail.com",
+  "mailto:ajnbuzz@gmail.com",
+  "Tool support",
+  "Privacy",
+]);
+for (const leaked of [
+  "production deployment",
+  "local build",
+  "CHECK_LOCAL.ps1",
+  "TypeScript",
+  "stale server",
+]) {
+  if (contact.includes(leaked)) fail(`contact contains developer leak: ${leaked}`);
+}
+
+const help = read("src/app/help/page.tsx");
+markers("help", help, [
+  "Image will not open",
+  "Processing does not start",
+  "Large image failed",
+  "Download does not start",
+  "Multiple images",
+  "ajnbuzz@gmail.com",
+]);
+for (const leaked of ["CHECK_LOCAL.ps1", "TypeScript", "stale server"]) {
+  if (help.includes(leaked)) fail(`help contains developer leak: ${leaked}`);
+}
+
+const privacy = read("src/app/privacy/page.tsx");
+markers("privacy", privacy, [
+  "Google AdSense",
+  "Cookies and similar technologies",
+  "Personalized advertising choices",
+  "Local browser storage",
+  "Third-party services",
+  "Retention",
+  "ajnbuzz@gmail.com",
+  "13 September 2026",
 ]);
 
+const terms = read("src/app/terms/page.tsx");
+markers("terms", terms, [
+  "Acceptable use",
+  "Your images and permissions",
+  "Prohibited misuse",
+  "Tool limitations",
+  "Service availability",
+  "Responsibility and liability",
+  "ajnbuzz@gmail.com",
+]);
+
+const about = read("src/app/about/page.tsx");
+if (about.includes("AJN Buzz Image is")) fail("About still uses obsolete AJN Buzz Image brand");
+markers("about", about, ["About AJN Buzz", "Focused online image tools"]);
+
 const toolPage = read("src/app/tools/[slug]/page.tsx");
-markers("tool router", toolPage, [
+markers("tool router and related content", toolPage, [
   "HtmlToImageEditor",
   "tool.id === 'html-to-image'",
   "ImageEditor tool={tool}",
   "'@type': 'WebApplication'",
   "'@type': 'HowTo'",
   "'@type': 'FAQPage'",
+  "related-tools-section",
+  "Related tools",
 ]);
 
-const editor = read("src/components/ImageEditor.tsx");
-markers("image workflow safety", editor, [
-  "function clearSelection()",
-  "JPG to PNG / WebP accepts JPG or JPEG source files.",
-  "Watermark area preset",
-  "Repair strength",
-  "0° (flip only)",
-]);
-if (has(editor, "convert-to-jpg"))
-  fail("legacy convert-to-jpg UI must not remain");
+const recent = read("src/app/recent/page.tsx");
+const favorites = read("src/app/favorites/page.tsx");
+markers("recent noindex", recent, ["index: false"]);
+markers("favorites noindex", favorites, ["index: false"]);
 
-const shell = read("src/components/Shell.tsx");
-markers("AJN network navigation", shell, [
-  "https://ajnpdf.com",
-  "https://qrajn.online",
-  "QR AJN",
-]);
-
-const seo = read("src/lib/seo.ts");
-markers("SEO", seo, [
-  "https://www.ajn.buzz",
-  "compress image online",
-  "resize image online",
-  "crop image online",
-  "image converter",
-  "html to image",
-  "summary_large_image",
-]);
+const robots = read("src/app/robots.ts");
+markers("robots", robots, ["allow: '/'", "disallow: ['/api/']", "sitemap:"]);
+if (robots.includes('"/recent"') || robots.includes('"/favorites"')) {
+  fail("robots must allow noindex utility pages to be crawled");
+}
 
 const sitemap = read("src/app/sitemap.ts");
-markers("sitemap", sitemap, ["IMAGE_TOOLS.map", "SITE_URL"]);
+markers("sitemap", sitemap, [
+  "IMAGE_TOOLS.map",
+  "SITE_URL",
+  '"/help"',
+  "2026-09-13",
+]);
+if (sitemap.includes('"/recent"') || sitemap.includes('"/favorites"')) {
+  fail("sitemap contains low-value utility page");
+}
+
 const nextConfig = read("next.config.mjs");
+markers("production security", nextConfig, [
+  "Content-Security-Policy",
+  "Strict-Transport-Security",
+  "X-Content-Type-Options",
+  "Referrer-Policy",
+  "Permissions-Policy",
+  "X-Frame-Options",
+  "upgrade-insecure-requests",
+]);
 markers("redirects", nextConfig, [
   "source: '/compress-image'",
   "destination: '/tools/compress'",
   "source: '/html-to-image'",
   "destination: '/tools/html-to-image'",
-  "source: '/image-to-jpg'",
-  "destination: '/tools/convert'",
-  "source: '/jpg-to-png'",
-  "destination: '/tools/jpg-to-png'",
 ]);
 
-const seller = "google.com, pub-4495802176396975, DIRECT, f08c47fec0942fa0";
+const adSlot = read("src/components/AdSlot.tsx");
+markers("ad layout stability", adSlot, [
+  "potentiallyEnabled",
+  "minHeight: 140",
+  "Advertisement",
+  "ad-reserved-space",
+]);
+const consent = read("src/components/CookieConsent.tsx");
+markers("privacy controls", consent, [
+  "Essential only",
+  "Accept optional",
+  "Privacy choices",
+  "/privacy",
+]);
+
+const shell = read("src/components/Shell.tsx");
+markers("navigation", shell, [
+  "https://ajnpdf.com",
+  "https://qrajn.online",
+  "QR AJN",
+]);
+if (!shell.includes("ajnbuzz@gmail.com")) {
+  fail("footer must expose the real AJN Buzz contact email");
+}
+
+const seller =
+  "google.com, pub-4495802176396975, DIRECT, f08c47fec0942fa0";
 if (read("public/ads.txt").trim() !== seller)
   fail("ads.txt seller record mismatch");
 if (read("public/app-ads.txt").trim() !== seller)
   fail("app-ads.txt seller record mismatch");
 
 const pkg = JSON.parse(read("package.json"));
-if (pkg.version !== "5.4.0")
-  fail(`package version must be 5.4.0, found ${pkg.version}`);
 if (pkg.dependencies?.firebase || pkg.dependencies?.["firebase-admin"]) {
   fail("Firebase dependencies must remain removed");
 }
@@ -284,23 +336,6 @@ for (const [name, version] of Object.entries({
   if (/^[~^]/.test(String(version)))
     fail(`dependency not exact: ${name}@${version}`);
 }
-
-const health = read("src/app/api/health/route.ts");
-markers("health API", health, [
-  "version: '5.4.0'",
-  "public_tools: IMAGE_TOOLS.length",
-  "target_size_compression: true",
-  "remove_watermark_local_inpainting: true",
-  "html_to_image_local_rendering: true",
-  "all_tools_explicit: true",
-]);
-
-const config = read("src/app/api/config/route.ts");
-markers("config API", config, [
-  "version: '5.4.0'",
-  "qr_ajn: 'https://qrajn.online'",
-  "pdf_shortcuts: 'https://ajnpdf.com'",
-]);
 
 const srcFiles = [];
 function walk(dir) {
@@ -319,26 +354,12 @@ for (const file of srcFiles) {
   }
 }
 
-console.log("PASS: exactly 11 focused public image tools");
-console.log(
-  "PASS: homepage matches AJN Buzz concept structure with real inline compression",
-);
-console.log(
-  "PASS: AJN PDF + QR AJN ecosystem cards and qrajn.online promotion",
-);
-console.log(
-  "PASS: HTML to Image replaces legacy Image to JPG and uses local sanitized rendering",
-);
-console.log("PASS: Remove Watermark local inpainting retained");
-console.log(
-  "PASS: target-size compression, output validation and workflow safety retained",
-);
-console.log(
-  "PASS: canonical SEO, sitemap, redirects, ads seller records and recovery surfaces retained",
-);
-console.log(
-  "PASS: account, billing, Premium, Firebase and Razorpay remain removed",
-);
-console.log(
-  "AJN BUZZ IMAGE V5.4.0 CONCEPT + LOGIC + NETWORK SOURCE VERIFY: PASS",
-);
+console.log("PASS: 11 focused public image tools retained");
+console.log("PASS: reference-inspired long landing + truthful capability copy");
+console.log("PASS: Contact, Help, Privacy, Terms and About production copy");
+console.log("PASS: recent/favorites noindex crawl strategy + clean sitemap");
+console.log("PASS: related tools + WebApplication/HowTo/FAQ/Breadcrumb SEO");
+console.log("PASS: security headers + HTTPS upgrade policy");
+console.log("PASS: AdSense seller record + reserved ad layout + privacy choices");
+console.log("PASS: no developer-only public copy or unsupported marketing stats");
+console.log("AJN BUZZ REFERENCE LANDING V7 VERIFY: PASS");

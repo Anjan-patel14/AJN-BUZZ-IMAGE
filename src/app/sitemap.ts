@@ -4,13 +4,14 @@ import { SITE_URL } from "@/lib/seo";
 
 export const revalidate = 3600;
 
-const RELEASED_AT = new Date("2026-09-06T05:45:00.000Z");
+const RELEASED_AT = new Date("2026-09-13T03:00:00.000Z");
 const STATIC_INDEXABLE_ROUTES = [
   "/",
   "/tools",
   "/features",
   "/faq",
   "/about",
+  "/help",
   "/privacy",
   "/terms",
   "/contact",

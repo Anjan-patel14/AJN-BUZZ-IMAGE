@@ -74,7 +74,24 @@ const nextConfig = {
     ];
   },
   async headers() {
+    const contentSecurityPolicy = [
+      "default-src 'self' https: data: blob:",
+      "script-src 'self' 'unsafe-inline' 'unsafe-eval' https:",
+      "style-src 'self' 'unsafe-inline' https:",
+      "img-src 'self' data: blob: https:",
+      "font-src 'self' data: https:",
+      "connect-src 'self' https:",
+      "frame-src https:",
+      "worker-src 'self' blob:",
+      "object-src 'none'",
+      "base-uri 'self'",
+      "form-action 'self' mailto:",
+      "frame-ancestors 'none'",
+      "upgrade-insecure-requests",
+    ].join("; ");
+
     const securityHeaders = [
+      { key: "Content-Security-Policy", value: contentSecurityPolicy },
       { key: "X-Content-Type-Options", value: "nosniff" },
       { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
       {
