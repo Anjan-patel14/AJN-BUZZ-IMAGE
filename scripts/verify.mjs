@@ -163,10 +163,15 @@ markers("HTML to Image engine", htmlEngine, [
 ]);
 
 const home = read("src/app/page.tsx");
-markers("reference landing v7", home, [
+markers("reference landing v7.6", home, [
   "Smart Image Tools",
   "in One Place",
   "Everything You Need for Images",
+  "Quick Access",
+  "Jump into your favorite image tools and get things done faster.",
+  "Reduce image size to a KB or MB target.",
+  "Repair a selected watermark or logo area.",
+  "Search and explore the complete current image catalog.",
   "See the Difference",
   "Get Results in 4 Simple Steps",
   "Perfect for Everyday Image Work",
@@ -183,6 +188,12 @@ if (home.includes("3.4 MB") || home.includes("100 KB</b>")) {
 }
 if (/fake|50,000\+|#1 image/i.test(home)) {
   fail("homepage contains unsupported marketing claim");
+}
+if (home.includes("styles.proofRow")) {
+  fail("homepage still contains the removed hero proof area");
+}
+if (home.includes("Start Editing Now") || home.includes("Focused workflows")) {
+  fail("homepage still contains removed hero action/proof copy");
 }
 
 const contact = read("src/app/contact/page.tsx");

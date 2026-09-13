@@ -895,3 +895,369 @@
     align-items: flex-start;
   }
 }
+
+/* AJN BUZZ V7.7 :: COMPACT HERO + TOOLS + QUICK ACCESS */
+.hero {
+  padding: 28px 0 14px;
+  min-height: 0;
+  background:
+    radial-gradient(circle at 8% 28%, rgba(131, 90, 255, 0.14), transparent 21%),
+    radial-gradient(circle at 92% 24%, rgba(255, 89, 202, 0.13), transparent 22%),
+    radial-gradient(circle at 58% 0%, rgba(79, 170, 255, 0.11), transparent 24%),
+    linear-gradient(180deg, #f9fcff 0%, #f7fbff 74%, #f8fbff 100%);
+}
+
+.hero::after {
+  display: none;
+}
+
+.heroGlowOne {
+  width: 170px;
+  height: 170px;
+  left: -70px;
+  top: 76px;
+}
+
+.heroGlowTwo {
+  width: 190px;
+  height: 190px;
+  right: -78px;
+  top: 80px;
+}
+
+.dotPattern {
+  top: 92px;
+  height: 96px;
+}
+
+.pill {
+  min-height: 28px;
+  padding-inline: 16px;
+  font-size: 11px;
+}
+
+.hero h1 {
+  max-width: 920px;
+  margin: 16px auto 7px;
+  font-size: clamp(38px, 5.2vw, 60px);
+  line-height: 0.98;
+}
+
+.heroLead {
+  max-width: 760px;
+  font-size: clamp(15px, 1.5vw, 18px);
+  line-height: 1.45;
+}
+
+.handNote {
+  right: 2%;
+  top: 106px;
+  font-size: 15px;
+}
+
+.handNote span {
+  margin-left: 24px;
+  font-size: 27px;
+}
+
+.toolsSection {
+  z-index: 2;
+  margin-top: -1px;
+  padding: 0 0 26px;
+  background:
+    radial-gradient(circle at 8% 42%, rgba(66, 151, 255, 0.08), transparent 20%),
+    radial-gradient(circle at 92% 38%, rgba(226, 68, 255, 0.07), transparent 20%),
+    #f9fcff;
+}
+
+.toolsPanel,
+.quickAccessPanel {
+  border: 1px solid rgba(72, 101, 170, 0.10);
+  background: rgba(255, 255, 255, 0.74);
+  box-shadow: 0 18px 50px rgba(24, 49, 105, 0.06);
+  backdrop-filter: blur(10px);
+}
+
+.toolsPanel {
+  border-radius: 22px;
+  padding: 14px 18px 18px;
+}
+
+.toolsPanel .centerHeading {
+  margin-bottom: 13px;
+}
+
+.toolsPanel .centerHeading > span {
+  display: inline-flex;
+  min-height: 24px;
+  align-items: center;
+  padding: 0 14px;
+  border-radius: 999px;
+  background: rgba(100, 114, 239, 0.08);
+  color: #5367d9;
+  font-size: 10px;
+  letter-spacing: 0.12em;
+}
+
+.toolsPanel .centerHeading h2 {
+  margin: 5px 0 3px;
+  font-size: clamp(25px, 2.8vw, 34px);
+}
+
+.toolsPanel .centerHeading p {
+  font-size: 14px;
+}
+
+.toolGrid {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 9px;
+}
+
+.toolCard {
+  min-height: 76px;
+  padding: 10px 11px;
+  border-radius: 13px;
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr) 28px;
+  align-items: center;
+  gap: 10px;
+  text-align: left;
+  box-shadow: 0 8px 24px rgba(34, 57, 106, 0.045);
+}
+
+.toolCard:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 12px 30px rgba(34, 57, 106, 0.085);
+}
+
+.toolIcon {
+  width: 44px;
+  height: 44px;
+  margin: 0;
+  border-radius: 12px;
+}
+
+.toolCardCopy {
+  min-width: 0;
+}
+
+.toolCardCopy strong,
+.toolCardCopy small {
+  display: block;
+}
+
+.toolCardCopy strong {
+  font-size: 13px;
+  line-height: 1.18;
+}
+
+.toolCardCopy small {
+  margin-top: 3px;
+  color: #7080aa;
+  font-size: 10.5px;
+  line-height: 1.27;
+}
+
+.toolCardArrow,
+.quickAccessArrow {
+  display: grid;
+  place-items: center;
+  border-radius: 999px;
+  color: #274a96;
+  background: #f4f7ff;
+}
+
+.toolCardArrow {
+  width: 26px;
+  height: 26px;
+}
+
+.moreCard {
+  border-style: solid;
+}
+
+.quickAccessPanel {
+  margin-top: 10px;
+  padding: 11px 14px 14px;
+  border-radius: 18px;
+}
+
+.quickAccessHeader {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 0 4px 9px;
+}
+
+.quickAccessHeader h2 {
+  margin: 0;
+  font-size: 20px;
+  line-height: 1.1;
+  letter-spacing: -0.025em;
+}
+
+.quickAccessHeader p {
+  margin: 3px 0 0;
+  color: #7180a8;
+  font-size: 12px;
+}
+
+.quickAccessHeader > a {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: #1769e8;
+  font-size: 12px;
+  font-weight: 850;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.quickAccessGrid {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.quickAccessCard {
+  min-width: 0;
+  min-height: 64px;
+  padding: 8px 8px;
+  display: grid;
+  grid-template-columns: 36px minmax(0, 1fr) 22px;
+  align-items: center;
+  gap: 7px;
+  border: 1px solid rgba(34, 61, 132, 0.07);
+  border-radius: 12px;
+  color: #0b1b56;
+  background: rgba(255, 255, 255, 0.94);
+  text-decoration: none;
+  transition: transform 0.18s ease, box-shadow 0.18s ease;
+}
+
+.quickAccessCard:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 24px rgba(34, 57, 106, 0.08);
+}
+
+.quickAccessIcon {
+  width: 36px;
+  height: 36px;
+  display: grid;
+  place-items: center;
+  border-radius: 10px;
+  color: #fff;
+}
+
+.quickAccessCopy {
+  min-width: 0;
+}
+
+.quickAccessCopy strong,
+.quickAccessCopy small {
+  display: block;
+}
+
+.quickAccessCopy strong {
+  font-size: 11.5px;
+  line-height: 1.15;
+}
+
+.quickAccessCopy small {
+  display: -webkit-box;
+  margin-top: 3px;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  color: #7180a8;
+  font-size: 9px;
+  line-height: 1.22;
+}
+
+.quickAccessArrow {
+  width: 22px;
+  height: 22px;
+}
+
+@media (max-width: 1100px) {
+  .toolGrid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .quickAccessGrid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 760px) {
+  .hero {
+    padding: 24px 0 12px;
+  }
+
+  .hero h1 {
+    margin-top: 14px;
+    font-size: clamp(36px, 11vw, 50px);
+  }
+
+  .heroLead {
+    max-width: 560px;
+    font-size: 15px;
+  }
+
+  .toolsSection {
+    padding: 0 0 22px;
+  }
+
+  .toolsPanel {
+    padding: 12px;
+    border-radius: 18px;
+  }
+
+  .toolGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+  }
+
+  .toolCard {
+    min-height: 88px;
+    grid-template-columns: 40px minmax(0, 1fr);
+    padding: 9px;
+  }
+
+  .toolIcon {
+    width: 40px;
+    height: 40px;
+  }
+
+  .toolCardArrow {
+    display: none;
+  }
+
+  .quickAccessHeader {
+    align-items: flex-start;
+  }
+
+  .quickAccessGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 480px) {
+  .toolGrid,
+  .quickAccessGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .toolCard {
+    min-height: 72px;
+  }
+
+  .quickAccessHeader {
+    display: block;
+  }
+
+  .quickAccessHeader > a {
+    margin-top: 8px;
+  }
+}

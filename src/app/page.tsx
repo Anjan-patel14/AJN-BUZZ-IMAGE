@@ -8,12 +8,10 @@ import {
   Download,
   FileText,
   Gem,
-  Globe2,
   GraduationCap,
   Heart,
   ImageIcon,
   MonitorSmartphone,
-  PlayCircle,
   QrCode,
   Rocket,
   ShieldCheck,
@@ -62,6 +60,33 @@ const toolTones = [
   styles.code,
   styles.sky,
 ];
+
+const toolDisplayCopy: Record<string, string> = {
+  compress: "Reduce image size to a KB or MB target.",
+  resize: "Change image dimensions easily.",
+  crop: "Focus on what matters.",
+  convert: "JPG, PNG, WebP and more.",
+  "remove-watermark": "Repair a selected watermark or logo area.",
+  rotate: "Rotate or flip an image.",
+  watermark: "Add text or branding.",
+  "photo-editor": "Brightness, contrast, color and blur.",
+  upscale: "Increase image dimensions safely.",
+  "html-to-image": "Turn HTML into PNG, JPG or WebP.",
+  "jpg-to-png": "Convert JPG to PNG or WebP.",
+};
+
+const QUICK_ACCESS_IDS = [
+  "compress",
+  "resize",
+  "crop",
+  "convert",
+  "photo-editor",
+  "watermark",
+] as const;
+
+const quickAccessTools = QUICK_ACCESS_IDS.map((id) =>
+  IMAGE_TOOLS.find((tool) => tool.id === id),
+).filter((tool) => tool !== undefined);
 
 const differenceCards = [
   {
@@ -219,91 +244,93 @@ export default function Home() {
               Compress, resize, crop, convert and edit images online with a
               simple workflow built for everyday image tasks.
             </p>
-            <div className={styles.heroActions}>
-              <Link href="/tools/photo-editor" className={styles.primaryButton}>
-                Start Editing Now <ArrowRight size={18} />
-              </Link>
-              <Link href="/tools" className={styles.secondaryButton}>
-                <PlayCircle size={18} /> Explore Tools
-              </Link>
-            </div>
             <div className={styles.handNote}>
               Edit. Resize. Convert.
-              <span aria-hidden="true">↘</span>
-            </div>
-            <div className={styles.proofRow}>
-              <div>
-                <span className={`${styles.proofIcon} ${styles.blue}`}>
-                  <Zap size={19} />
-                </span>
-                <span>
-                  <b>Fast & easy</b>
-                  <small>Focused workflows</small>
-                </span>
-              </div>
-              <div>
-                <span className={`${styles.proofIcon} ${styles.green}`}>
-                  <ShieldCheck size={19} />
-                </span>
-                <span>
-                  <b>Browser processing</b>
-                  <small>For current image tools</small>
-                </span>
-              </div>
-              <div>
-                <span className={`${styles.proofIcon} ${styles.pink}`}>
-                  <Heart size={19} />
-                </span>
-                <span>
-                  <b>No sign-up</b>
-                  <small>Open a tool and start</small>
-                </span>
-              </div>
-              <div>
-                <span className={`${styles.proofIcon} ${styles.indigo}`}>
-                  <Globe2 size={19} />
-                </span>
-                <span>
-                  <b>Works on devices</b>
-                  <small>Modern desktop & mobile browsers</small>
-                </span>
-              </div>
+              <span aria-hidden="true">↙</span>
             </div>
           </div>
         </section>
 
         <section className={styles.toolsSection}>
           <div className="container">
-            <div className={styles.centerHeading}>
-              <span>EXPLORE OUR TOOLS</span>
-              <h2>Everything You Need for Images</h2>
-              <p>Eleven focused tools, ready when you need them.</p>
-            </div>
-            <div className={styles.toolGrid}>
-              {IMAGE_TOOLS.map((tool, index) => (
-                <Link
-                  href={`/tools/${tool.id}`}
-                  className={styles.toolCard}
-                  key={tool.id}
-                >
-                  <span
-                    className={`${styles.toolIcon} ${
-                      toolTones[index % toolTones.length]
-                    }`}
+            <div className={styles.toolsPanel}>
+              <div className={styles.centerHeading}>
+                <span>EXPLORE OUR TOOLS</span>
+                <h2>Everything You Need for Images</h2>
+                <p>Eleven focused tools, ready when you need them.</p>
+              </div>
+              <div className={styles.toolGrid}>
+                {IMAGE_TOOLS.map((tool, index) => (
+                  <Link
+                    href={`/tools/${tool.id}`}
+                    className={styles.toolCard}
+                    key={tool.id}
                   >
-                    <ToolIcon name={tool.icon} size={28} />
+                    <span
+                      className={`${styles.toolIcon} ${
+                        toolTones[index % toolTones.length]
+                      }`}
+                    >
+                      <ToolIcon name={tool.icon} size={24} />
+                    </span>
+                    <span className={styles.toolCardCopy}>
+                      <strong>{tool.name}</strong>
+                      <small>{toolDisplayCopy[tool.id] ?? tool.summary}</small>
+                    </span>
+                    <span className={styles.toolCardArrow} aria-hidden="true">
+                      <ArrowRight size={15} />
+                    </span>
+                  </Link>
+                ))}
+                <Link href="/tools" className={`${styles.toolCard} ${styles.moreCard}`}>
+                  <span className={`${styles.toolIcon} ${styles.soft}`}>
+                    <Sparkles size={24} />
                   </span>
-                  <strong>{tool.name}</strong>
-                  <small>{tool.summary}</small>
+                  <span className={styles.toolCardCopy}>
+                    <strong>All Image Tools</strong>
+                    <small>Search and explore the complete current image catalog.</small>
+                  </span>
+                  <span className={styles.toolCardArrow} aria-hidden="true">
+                    <ArrowRight size={15} />
+                  </span>
                 </Link>
-              ))}
-              <Link href="/tools" className={`${styles.toolCard} ${styles.moreCard}`}>
-                <span className={`${styles.toolIcon} ${styles.soft}`}>
-                  <Sparkles size={28} />
+              </div>
+            </div>
+
+            <div className={styles.quickAccessPanel}>
+              <div className={styles.quickAccessHeader}>
+                <span>
+                  <h2>Quick Access</h2>
+                  <p>Jump into your favorite image tools and get things done faster.</p>
                 </span>
-                <strong>All Image Tools</strong>
-                <small>Search and explore the complete current image catalog.</small>
-              </Link>
+                <Link href="/tools">
+                  View All Tools <ArrowRight size={15} />
+                </Link>
+              </div>
+              <div className={styles.quickAccessGrid}>
+                {quickAccessTools.map((tool, index) => (
+                  <Link
+                    href={`/tools/${tool.id}`}
+                    className={styles.quickAccessCard}
+                    key={tool.id}
+                  >
+                    <span
+                      className={`${styles.quickAccessIcon} ${
+                        toolTones[index % toolTones.length]
+                      }`}
+                    >
+                      <ToolIcon name={tool.icon} size={20} />
+                    </span>
+                    <span className={styles.quickAccessCopy}>
+                      <strong>{tool.name}</strong>
+                      <small>{toolDisplayCopy[tool.id] ?? tool.summary}</small>
+                    </span>
+                    <span className={styles.quickAccessArrow} aria-hidden="true">
+                      <ArrowRight size={13} />
+                    </span>
+                  </Link>
+                ))}
+              </div>
             </div>
           </div>
         </section>
