@@ -19,12 +19,12 @@ const SAMPLE_HTML = `<div style="width:100%;height:100%;display:grid;place-items
   <div style="width:100%;max-width:760px;background:white;border:1px solid #dfe7f4;border-radius:28px;padding:48px;box-sizing:border-box;box-shadow:0 20px 60px rgba(15,23,42,.10);">
     <div style="font-size:15px;font-weight:800;color:#2563eb;letter-spacing:.12em;text-transform:uppercase;">AJN Buzz</div>
     <h1 style="font-size:52px;line-height:1.04;margin:14px 0;color:#0f172a;">Turn HTML into an image.</h1>
-    <p style="font-size:22px;line-height:1.5;margin:0;color:#64748b;">Create clean PNG, JPG or WebP graphics directly in your browser.</p>
+    <p style="font-size:22px;line-height:1.5;margin:0;color:#64748b;">Create clean PNG or JPG graphics directly in your browser.</p>
   </div>
 </div>`;
 
 function extension(type: HtmlImageFormat) {
-  return type === "image/jpeg" ? "jpg" : type === "image/webp" ? "webp" : "png";
+  return type === "image/jpeg" ? "jpg" : "png";
 }
 
 function formatBytes(bytes: number) {
@@ -179,7 +179,7 @@ export function HtmlToImageEditor({ tool }: { tool: ImageTool }) {
           </button>
         </div>
         <p className="muted small tool-control-summary">
-          Render safe HTML to PNG, JPG or WebP.
+          Render safe HTML to PNG or JPG.
         </p>
 
         <div className="row">
@@ -234,7 +234,6 @@ export function HtmlToImageEditor({ tool }: { tool: ImageTool }) {
           >
             <option value="image/png">PNG</option>
             <option value="image/jpeg">JPG</option>
-            <option value="image/webp">WebP</option>
           </select>
         </div>
 

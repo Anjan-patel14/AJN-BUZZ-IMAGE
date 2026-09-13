@@ -120,7 +120,7 @@ markers("priority tools", tools, [
 markers("HTML to Image registry", tools, [
   "id: 'html-to-image'",
   "name: 'HTML to Image'",
-  "HTML to Image Online — Convert HTML to PNG, JPG or WebP",
+  "HTML to Image Online — Convert HTML to PNG or JPG",
 ]);
 markers("Remove Watermark registry", tools, [
   "id: 'remove-watermark'",
@@ -297,6 +297,50 @@ markers("download parity v7.11 HTML editor", htmlEditorDownloadParity, [
   "download={resultName}",
   "Download result",
 ]);
+
+const outputEngineV713 = read("src/lib/image-engine.ts");
+const outputValidatorV713 = read("src/lib/image-output.ts");
+const imageEditorV713 = read("src/components/ImageEditor.tsx");
+const homeCompressV713 = read("src/components/HomeQuickCompress.tsx");
+const htmlEditorV713 = read("src/components/HtmlToImageEditor.tsx");
+const htmlEngineV713 = read("src/lib/html-to-image.ts");
+markers("JPG/PNG output policy v7.16", outputEngineV713, [
+  'export type OutputFormat = "image/png" | "image/jpeg"',
+  'return "image/png"',
+  "Choose JPG or a larger target",
+]);
+markers("JPG/PNG editor choices v7.16", imageEditorV713, [
+  '<option value="image/jpeg">JPG</option>',
+  '<option value="image/png">PNG</option>',
+  "Process & prepare download",
+  'aria-label="Download result"',
+]);
+markers("JPG/PNG home compressor v7.16", homeCompressV713, [
+  "Output format",
+  '<option value="image/jpeg">JPG</option>',
+  '<option value="image/png">PNG</option>',
+  'result.type === "image/jpeg" ? "JPG" : "PNG"',
+]);
+markers("JPG/PNG HTML renderer v7.16", htmlEngineV713, [
+  'export type HtmlImageFormat = "image/png" | "image/jpeg"',
+]);
+for (const [label, source] of [
+  ["image engine", outputEngineV713],
+  ["output validator", outputValidatorV713],
+  ["image editor", imageEditorV713],
+  ["home compressor", homeCompressV713],
+  ["HTML editor", htmlEditorV713],
+  ["HTML engine", htmlEngineV713],
+]) {
+  if (/image\/webp|WebP|\.webp/i.test(source)) {
+    fail(`V7.16 ${label} still exposes WebP output`);
+  }
+}
+const publicToolCopyV713 = read("src/lib/image-tools.ts");
+const publicHomeCopyV713 = read("src/app/page.tsx");
+if (/webp/i.test(publicToolCopyV713) || /webp/i.test(publicHomeCopyV713)) {
+  fail("V7.16 public tool/home copy still advertises WebP");
+}
 
 const recent = read("src/app/recent/page.tsx");
 const favorites = read("src/app/favorites/page.tsx");

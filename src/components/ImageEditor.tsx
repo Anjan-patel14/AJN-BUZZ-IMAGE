@@ -28,7 +28,7 @@ import type { ImageTool } from "@/lib/image-tools";
 import { markRecentTool } from "@/lib/tool-state";
 
 function outputExt(type: string) {
-  return type === "image/jpeg" ? "jpg" : type === "image/webp" ? "webp" : "png";
+  return type === "image/jpeg" ? "jpg" : "png";
 }
 function safeName(name: string) {
   return (
@@ -43,15 +43,11 @@ function formatBytes(bytes: number) {
   if (bytes < 1024 * 1024) return `${Math.max(1, Math.round(bytes / 1024))} KB`;
   return `${(bytes / 1024 / 1024).toFixed(2)} MB`;
 }
-function sourceFormat(file: File): OutputFormat | null {
-  return file.type === "image/jpeg" ||
-    file.type === "image/png" ||
-    file.type === "image/webp"
-    ? file.type
-    : null;
+function sourceFormat(file: File): OutputFormat {
+  return file.type === "image/jpeg" ? "image/jpeg" : "image/png";
 }
 
-type CompressOutput = "auto" | "keep" | OutputFormat;
+type CompressOutput = OutputFormat;
 type TargetUnit = "KB" | "MB";
 type ProcessedItem = ImageProcessResult & {
   name: string;
@@ -61,7 +57,7 @@ type ProcessedItem = ImageProcessResult & {
 
 const DEFAULT_OPTIONS: ImageOptions = {
   quality: 0.9,
-  format: "image/webp",
+  format: "image/png",
   angle: 90,
   flip: "none",
   amount: 4,
@@ -106,7 +102,7 @@ export function ImageEditor({ tool }: { tool: ImageTool }) {
   const [compressMode, setCompressMode] = useState<CompressionMode>("auto");
   const [targetValue, setTargetValue] = useState(100);
   const [targetUnit, setTargetUnit] = useState<TargetUnit>("KB");
-  const [compressOutput, setCompressOutput] = useState<CompressOutput>("auto");
+  const [compressOutput, setCompressOutput] = useState<CompressOutput>("image/jpeg");
   const inputRef = useRef<HTMLInputElement>(null);
   const previewRun = useRef(0);
   const cancelled = useRef(false);
@@ -194,14 +190,7 @@ export function ImageEditor({ tool }: { tool: ImageTool }) {
           (!Number.isFinite(targetValue) || targetValue <= 0)
         )
           throw new Error("Enter a target size greater than 0.");
-        const format =
-          compressOutput === "auto"
-            ? compressMode === "target"
-              ? "image/webp"
-              : sourceFormat(file) || "image/webp"
-            : compressOutput === "keep"
-              ? sourceFormat(file) || "image/webp"
-              : compressOutput;
+        const format = compressOutput;
         return compressImage(file, {
           mode: compressMode,
           targetBytes: compressMode === "target" ? targetBytes : undefined,
@@ -236,7 +225,7 @@ export function ImageEditor({ tool }: { tool: ImageTool }) {
         (file) => file.type === "image/jpeg" || /\.jpe?g$/i.test(file.name),
       );
       if (!valid.length) {
-        setError("JPG to PNG / WebP accepts JPG or JPEG source files.");
+        setError("JPG to PNG accepts JPG or JPEG source files.");
         return;
       }
     }
@@ -256,6 +245,7 @@ export function ImageEditor({ tool }: { tool: ImageTool }) {
     }
 
     const first = valid[0]!;
+    if (tool.id === "compress") setCompressOutput(sourceFormat(first));
     try {
       const dimensions = await imageDimensions(first);
       setRatio(dimensions.width / dimensions.height);
@@ -263,8 +253,10 @@ export function ImageEditor({ tool }: { tool: ImageTool }) {
       setOptions((current) => {
         const preserve = !["convert", "jpg-to-png"].includes(tool.id);
         const nextFormat = preserve
-          ? sourceFormat(first) || current.format
-          : current.format;
+          ? sourceFormat(first)
+          : tool.id === "jpg-to-png"
+            ? "image/png"
+            : current.format;
         return {
           ...current,
           ...(nextFormat ? { format: nextFormat } : {}),
@@ -417,7 +409,7 @@ export function ImageEditor({ tool }: { tool: ImageTool }) {
     setCompressMode("auto");
     setTargetValue(100);
     setTargetUnit("KB");
-    setCompressOutput("auto");
+    setCompressOutput(files[0] ? sourceFormat(files[0]) : "image/jpeg");
     setLivePreview(supportsLivePreview);
     setError("");
     setMessage("Settings reset.");
@@ -596,7 +588,7 @@ export function ImageEditor({ tool }: { tool: ImageTool }) {
     firstResult && firstSource && firstSource.size > 0
       ? Math.round((1 - firstResult.blob.size / firstSource.size) * 100)
       : null;
-  const selectedFormat = effectiveOptions.format || "image/webp";
+  const selectedFormat = effectiveOptions.format || "image/png";
   const showQuality = tool.id !== "compress" && selectedFormat !== "image/png";
   // AJN BUZZ V7.11 DOWNLOAD PARITY
   // Every image workflow exposes a visible download state. Live preview is
@@ -886,15 +878,12 @@ export function ImageEditor({ tool }: { tool: ImageTool }) {
                   setCompressOutput(event.target.value as CompressOutput)
                 }
               >
-                <option value="auto">Auto (recommended)</option>
-                <option value="keep">Keep original format</option>
                 <option value="image/jpeg">JPG</option>
-                <option value="image/webp">WebP</option>
                 <option value="image/png">PNG</option>
               </select>
               <small>
-                Auto uses WebP for target-size compression. JPG/WebP usually
-                reach small photo targets better than PNG.
+                JPG is best for photos and smaller target sizes. PNG is best
+                when you need transparency or lossless-style output.
               </small>
             </div>
           </div>
@@ -1143,19 +1132,8 @@ export function ImageEditor({ tool }: { tool: ImageTool }) {
           tool.id === "jpg-to-png" ? (
             <div className="field">
               <label>Output format</label>
-              <select
-                value={
-                  options.format === "image/webp" ? "image/webp" : "image/png"
-                }
-                onChange={(event) =>
-                  setOptions((current) => ({
-                    ...current,
-                    format: event.target.value as OutputFormat,
-                  }))
-                }
-              >
+              <select value="image/png" disabled aria-label="Output format">
                 <option value="image/png">PNG</option>
-                <option value="image/webp">WebP</option>
               </select>
             </div>
           ) : (
@@ -1170,7 +1148,6 @@ export function ImageEditor({ tool }: { tool: ImageTool }) {
                   }))
                 }
               >
-                <option value="image/webp">WebP</option>
                 <option value="image/jpeg">JPEG</option>
                 <option value="image/png">PNG</option>
               </select>

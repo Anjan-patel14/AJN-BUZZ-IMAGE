@@ -8,7 +8,7 @@ import {
 import { validateEncodedBlob } from "./image-output";
 import { repairWatermarkRegion } from "./remove-watermark";
 
-export type OutputFormat = "image/png" | "image/jpeg" | "image/webp";
+export type OutputFormat = "image/png" | "image/jpeg";
 export type CompressionMode = "auto" | "target";
 export type WatermarkPosition =
   | "center"
@@ -189,12 +189,7 @@ function canvasBlob(
 }
 
 function sourceOutputFormat(file: File): OutputFormat | null {
-  if (
-    file.type === "image/jpeg" ||
-    file.type === "image/png" ||
-    file.type === "image/webp"
-  )
-    return file.type;
+  if (file.type === "image/jpeg" || file.type === "image/png") return file.type;
   return null;
 }
 
@@ -203,15 +198,9 @@ function safeOutputType(
   requested: OutputFormat | undefined,
   inputType: string,
 ): OutputFormat {
-  if (id === "jpg-to-png")
-    return requested === "image/webp" ? "image/webp" : "image/png";
+  if (id === "jpg-to-png") return "image/png";
   if (requested) return requested;
-  if (
-    inputType === "image/jpeg" ||
-    inputType === "image/png" ||
-    inputType === "image/webp"
-  )
-    return inputType;
+  if (inputType === "image/jpeg" || inputType === "image/png") return inputType;
   return "image/png";
 }
 
@@ -226,7 +215,7 @@ export async function imageDimensions(file: File) {
 
 async function bestLossyAtSize(
   canvas: HTMLCanvasElement,
-  type: "image/jpeg" | "image/webp",
+  type: "image/jpeg",
   targetBytes: number,
 ) {
   let low = 0.12;
@@ -270,7 +259,7 @@ export async function compressImage(
   }
   const decoded = await decode(file);
   const requestedType =
-    options.format || sourceOutputFormat(file) || "image/webp";
+    options.format || sourceOutputFormat(file) || "image/png";
   const target = Math.max(1, Math.round(rawTarget));
 
   try {
@@ -383,7 +372,7 @@ export async function compressImage(
       targetReached: smallest.blob.size <= target,
       targetBytes: target,
       attempts,
-      note: `Closest safe browser result is ${Math.max(1, Math.round(smallest.blob.size / 1024))} KB. Choose JPG/WebP or a larger target if you need a closer result.`,
+      note: `Closest safe browser result is ${Math.max(1, Math.round(smallest.blob.size / 1024))} KB. Choose JPG or a larger target if you need a closer result.`,
     };
   } finally {
     decoded.close?.();

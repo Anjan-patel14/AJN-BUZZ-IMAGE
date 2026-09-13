@@ -65,14 +65,14 @@ const toolDisplayCopy: Record<string, string> = {
   compress: "Reduce image size to a KB or MB target.",
   resize: "Change image dimensions easily.",
   crop: "Focus on what matters.",
-  convert: "JPG, PNG, WebP and more.",
+  convert: "JPG and PNG.",
   "remove-watermark": "Repair a selected watermark or logo area.",
   rotate: "Rotate or flip an image.",
   watermark: "Add text or branding.",
   "photo-editor": "Brightness, contrast, color and blur.",
   upscale: "Increase image dimensions safely.",
-  "html-to-image": "Turn HTML into PNG, JPG or WebP.",
-  "jpg-to-png": "Convert JPG to PNG or WebP.",
+  "html-to-image": "Turn HTML into PNG or JPG.",
+  "jpg-to-png": "Convert JPG to PNG.",
 };
 
 const QUICK_ACCESS_IDS = [
@@ -180,7 +180,7 @@ const faqs = [
   },
   {
     q: "Which image formats are supported?",
-    a: "Core workflows support JPG/JPEG, PNG and WebP. Some tools also accept browser-decodable SVG. Exact input and output formats are shown on each tool page.",
+    a: "Generated outputs use JPG or PNG. Browser-supported uploads are decoded locally, and each tool shows the available output choices.",
   },
   {
     q: "Does AJN Buzz upload my source image?",

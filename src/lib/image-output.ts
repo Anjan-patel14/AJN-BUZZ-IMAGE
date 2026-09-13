@@ -6,7 +6,7 @@ export function validateEncodedBlob(blob: Blob, expected: OutputFormat) {
   }
 
   const type = blob.type || expected;
-  if (!["image/jpeg", "image/png", "image/webp"].includes(type)) {
+  if (!["image/jpeg", "image/png"].includes(type)) {
     throw new Error("The browser returned an unsupported image format.");
   }
 
@@ -15,6 +15,5 @@ export function validateEncodedBlob(blob: Blob, expected: OutputFormat) {
 
 export function outputExtension(type: OutputFormat) {
   if (type === "image/jpeg") return "jpg";
-  if (type === "image/webp") return "webp";
   return "png";
 }

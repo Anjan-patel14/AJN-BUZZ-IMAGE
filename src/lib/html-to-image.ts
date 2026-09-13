@@ -1,4 +1,4 @@
-export type HtmlImageFormat = "image/png" | "image/jpeg" | "image/webp";
+export type HtmlImageFormat = "image/png" | "image/jpeg";
 
 export type HtmlRenderOptions = {
   html: string;

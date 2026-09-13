@@ -25,7 +25,7 @@ function formatBytes(bytes: number) {
 }
 
 function extension(type: OutputFormat) {
-  return type === "image/jpeg" ? "jpg" : type === "image/webp" ? "webp" : "png";
+  return type === "image/jpeg" ? "jpg" : "png";
 }
 
 function baseName(name: string) {
@@ -38,14 +38,7 @@ function baseName(name: string) {
 }
 
 function sourceFormat(file: File): OutputFormat {
-  if (
-    file.type === "image/jpeg" ||
-    file.type === "image/png" ||
-    file.type === "image/webp"
-  ) {
-    return file.type;
-  }
-  return "image/webp";
+  return file.type === "image/jpeg" ? "image/jpeg" : "image/png";
 }
 
 export function HomeQuickCompress() {
@@ -53,6 +46,7 @@ export function HomeQuickCompress() {
   const [mode, setMode] = useState<CompressionMode>("target");
   const [target, setTarget] = useState(100);
   const [unit, setUnit] = useState<Unit>("KB");
+  const [outputFormat, setOutputFormat] = useState<OutputFormat>("image/jpeg");
   const [sourceUrl, setSourceUrl] = useState("");
   const [resultUrl, setResultUrl] = useState("");
   const [result, setResult] = useState<{
@@ -103,7 +97,7 @@ export function HomeQuickCompress() {
 
     if (!next) return;
     if (!next.type.startsWith("image/") || next.size <= 0) {
-      setError("Choose a JPG, PNG, WebP or another browser-supported image.");
+      setError("Choose a JPG, PNG or another browser-supported image.");
       return;
     }
     if (next.size > 30 * 1024 * 1024) {
@@ -115,6 +109,7 @@ export function HomeQuickCompress() {
     sourceObjectUrl.current = url;
     setSourceUrl(url);
     setFile(next);
+    setOutputFormat(sourceFormat(next));
   }
 
   async function run() {
@@ -134,7 +129,7 @@ export function HomeQuickCompress() {
       const output = await compressImage(file, {
         mode,
         targetBytes: mode === "target" ? targetBytes : undefined,
-        format: mode === "target" ? "image/webp" : sourceFormat(file),
+        format: outputFormat,
       });
       const url = URL.createObjectURL(output.blob);
       resultObjectUrl.current = url;
@@ -166,7 +161,7 @@ export function HomeQuickCompress() {
   const downloadName =
     file && result
       ? `${baseName(file.name)}-compressed.${extension(result.type)}`
-      : "ajn-buzz-compressed.webp";
+      : "ajn-buzz-compressed.jpg";
 
   return (
     <section className="home-compress-card" id="quick-compress">
@@ -266,6 +261,20 @@ export function HomeQuickCompress() {
           </>
         ) : null}
 
+        <div className="field">
+          <label>Output format</label>
+          <select
+            value={outputFormat}
+            onChange={(event) => {
+              setOutputFormat(event.target.value as OutputFormat);
+              clearResult();
+            }}
+          >
+            <option value="image/jpeg">JPG</option>
+            <option value="image/png">PNG</option>
+          </select>
+        </div>
+
         <button
           type="button"
           className="btn primary home-compress-cta"
@@ -335,7 +344,7 @@ export function HomeQuickCompress() {
         <span>
           {file ? "Click to choose another image" : "or click to browse"}
         </span>
-        <small>Supports JPG, PNG, WebP and more · 30 MB max</small>
+        <small>Outputs JPG or PNG · 30 MB max</small>
       </div>
 
       <div className="home-compress-results">
@@ -360,6 +369,10 @@ export function HomeQuickCompress() {
                 <b>
                   {result.width}×{result.height}
                 </b>
+              </div>
+              <div>
+                <span>Format</span>
+                <b>{result.type === "image/jpeg" ? "JPG" : "PNG"}</b>
               </div>
             </div>
             {mode === "target" ? (
