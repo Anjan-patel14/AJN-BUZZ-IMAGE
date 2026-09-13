@@ -265,6 +265,25 @@ markers("tool router and related content", toolPage, [
   "Related tools",
 ]);
 
+const imageEditorDownloadParity = read("src/components/ImageEditor.tsx");
+markers("download parity v7.11 image editor", imageEditorDownloadParity, [
+  "AJN BUZZ V7.11 DOWNLOAD PARITY",
+  "Process & prepare download",
+  "Process to enable download",
+  "Download result",
+  "Download all",
+  "Individual downloads",
+  "download={item.name}",
+]);
+const htmlEditorDownloadParity = read("src/components/HtmlToImageEditor.tsx");
+markers("download parity v7.11 HTML editor", htmlEditorDownloadParity, [
+  "AJN BUZZ V7.11 DOWNLOAD PARITY",
+  "Generate & prepare download",
+  'aria-label="Download result"',
+  "download={resultName}",
+  "Download result",
+]);
+
 const recent = read("src/app/recent/page.tsx");
 const favorites = read("src/app/favorites/page.tsx");
 markers("recent noindex", recent, ["index: false"]);
@@ -373,4 +392,5 @@ console.log("PASS: related tools + WebApplication/HowTo/FAQ/Breadcrumb SEO");
 console.log("PASS: security headers + HTTPS upgrade policy");
 console.log("PASS: AdSense seller record + reserved ad layout + privacy choices");
 console.log("PASS: no developer-only public copy or unsupported marketing stats");
+console.log("PASS: all 11 tools expose a consistent download path after processing");
 console.log("AJN BUZZ REFERENCE LANDING V7 VERIFY: PASS");

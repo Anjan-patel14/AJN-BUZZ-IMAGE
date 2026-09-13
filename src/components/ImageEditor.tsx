@@ -598,14 +598,17 @@ export function ImageEditor({ tool }: { tool: ImageTool }) {
       : null;
   const selectedFormat = effectiveOptions.format || "image/webp";
   const showQuality = tool.id !== "compress" && selectedFormat !== "image/png";
+  // AJN BUZZ V7.11 DOWNLOAD PARITY
+  // Every image workflow exposes a visible download state. Live preview is
+  // intentionally separate from the committed downloadable result.
   const actionLabel =
     tool.id === "compress"
       ? compressMode === "target"
-        ? `Compress to ${targetValue || 0} ${targetUnit}`
-        : "Compress image"
+        ? `Compress to ${targetValue || 0} ${targetUnit} & prepare download`
+        : "Compress & prepare download"
       : files.length > 1
-        ? `Process ${files.length} images`
-        : "Process image";
+        ? `Process ${files.length} images & prepare downloads`
+        : "Process & prepare download";
 
   return (
     <div className="editor-shell">
@@ -667,12 +670,12 @@ export function ImageEditor({ tool }: { tool: ImageTool }) {
               {previewWorking
                 ? "Updating…"
                 : livePreview
-                  ? "Live preview on"
+                  ? "Live preview on · process once to enable download"
                   : tool.id === "compress"
-                    ? "Press Compress to create the result"
+                    ? "Press Compress to create the downloadable result"
                     : supportsLivePreview
                       ? "Live preview off"
-                      : "Preview updates after processing"}
+                      : "Preview and download update after processing"}
             </span>
           </div>
           {supportsLivePreview ? (
@@ -1240,15 +1243,39 @@ export function ImageEditor({ tool }: { tool: ImageTool }) {
           </div>
         ) : null}
 
-        {firstResult && results.length === 1 ? (
-          <div className="result-actions">
+        <div className="result-actions" aria-label="Download result">
+          {firstResult && results.length === 1 ? (
             <a
               className="btn success"
               href={firstResult.url}
               download={firstResult.name}
             >
-              <Download size={18} /> Download
+              <Download size={18} /> Download result
             </a>
+          ) : batchUrl ? (
+            <a
+              className="btn success"
+              href={batchUrl}
+              download={`ajn-buzz-${tool.id}-${Date.now()}.zip`}
+            >
+              <FileArchive size={18} /> Download all {results.length} as ZIP
+            </a>
+          ) : (
+            <button className="btn success" type="button" disabled>
+              <Download size={18} />
+              {working
+                ? "Preparing download…"
+                : results.length > 1
+                  ? "Preparing ZIP…"
+                  : files.length
+                    ? "Process to enable download"
+                    : "Download result"}
+            </button>
+          )}
+        </div>
+
+        {firstResult && results.length === 1 ? (
+          <div className="result-actions">
             <a
               className="btn"
               href={firstResult.url}
@@ -1268,19 +1295,31 @@ export function ImageEditor({ tool }: { tool: ImageTool }) {
             </button>
           </div>
         ) : null}
-        {batchUrl ? (
-          <div className="result-actions">
-            <a
-              className="btn success"
-              href={batchUrl}
-              download={`ajn-buzz-${tool.id}-${Date.now()}.zip`}
+
+        {results.length > 1 ? (
+          <>
+            <div
+              className="result-actions batch-download-list"
+              aria-label="Individual downloads"
             >
-              <FileArchive size={18} /> Download {results.length} results as ZIP
-            </a>
-            <button className="btn" onClick={processAnother}>
-              <RefreshCcw size={18} /> Process another
-            </button>
-          </div>
+              {results.map((item, index) => (
+                <a
+                  className="btn"
+                  href={item.url}
+                  download={item.name}
+                  title={item.name}
+                  key={`${item.name}-${index}`}
+                >
+                  <Download size={17} /> Download {index + 1}
+                </a>
+              ))}
+            </div>
+            <div className="result-actions">
+              <button className="btn" onClick={processAnother}>
+                <RefreshCcw size={18} /> Process another
+              </button>
+            </div>
+          </>
         ) : null}
         <div className="privacy-note">
           <ShieldMini />

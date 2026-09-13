@@ -270,10 +270,24 @@ export function HtmlToImageEditor({ tool }: { tool: ImageTool }) {
             </>
           ) : (
             <>
-              <Play size={18} /> Generate image
+              <Play size={18} /> Generate & prepare download
             </>
           )}
         </button>
+
+        {/* AJN BUZZ V7.11 DOWNLOAD PARITY */}
+        <div className="result-actions" aria-label="Download result">
+          {resultUrl ? (
+            <a className="btn success" href={resultUrl} download={resultName}>
+              <Download size={18} /> Download result
+            </a>
+          ) : (
+            <button className="btn success" type="button" disabled>
+              <Download size={18} />
+              {working ? "Preparing download…" : "Download result"}
+            </button>
+          )}
+        </div>
 
         {error ? (
           <div className="error" role="alert">
@@ -283,9 +297,6 @@ export function HtmlToImageEditor({ tool }: { tool: ImageTool }) {
 
         {resultUrl ? (
           <div className="result-actions">
-            <a className="btn success" href={resultUrl} download={resultName}>
-              <Download size={18} /> Download
-            </a>
             <a
               className="btn"
               href={resultUrl}
