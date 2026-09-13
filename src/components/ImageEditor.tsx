@@ -1219,30 +1219,7 @@ export function ImageEditor({ tool }: { tool: ImageTool }) {
             </>
           )}
         </button>
-        {working ? (
-          <button
-            className="btn"
-            onClick={() => {
-              cancelled.current = true;
-            }}
-          >
-            <X size={17} /> Cancel
-          </button>
-        ) : null}
-        {error ? (
-          <div className="error" role="alert" aria-live="assertive">
-            {error}
-          </div>
-        ) : null}
-        {message ? (
-          <div
-            className={`notice ${firstResult?.targetReached === false ? "warning" : ""}`}
-            aria-live="polite"
-          >
-            {message}
-          </div>
-        ) : null}
-
+        {/* AJN BUZZ V7.12 DOWNLOAD ACTION POSITION */}
         <div className="result-actions" aria-label="Download result">
           {firstResult && results.length === 1 ? (
             <a
@@ -1273,6 +1250,32 @@ export function ImageEditor({ tool }: { tool: ImageTool }) {
             </button>
           )}
         </div>
+
+        {working ? (
+          <button
+            className="btn"
+            onClick={() => {
+              cancelled.current = true;
+            }}
+          >
+            <X size={17} /> Cancel
+          </button>
+        ) : null}
+        {error ? (
+          <div className="error" role="alert" aria-live="assertive">
+            {error}
+          </div>
+        ) : null}
+        {message ? (
+          <div
+            className={`notice ${firstResult?.targetReached === false ? "warning" : ""}`}
+            aria-live="polite"
+          >
+            {message}
+          </div>
+        ) : null}
+
+
 
         {firstResult && results.length === 1 ? (
           <div className="result-actions">

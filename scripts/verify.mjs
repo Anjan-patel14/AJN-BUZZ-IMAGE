@@ -275,6 +275,20 @@ markers("download parity v7.11 image editor", imageEditorDownloadParity, [
   "Individual downloads",
   "download={item.name}",
 ]);
+markers("download visibility v7.12", imageEditorDownloadParity, [
+  "AJN BUZZ V7.12 DOWNLOAD ACTION POSITION",
+]);
+const v712ProcessAction = imageEditorDownloadParity.indexOf('className="btn primary action-big"');
+const v712DownloadAction = imageEditorDownloadParity.indexOf('aria-label="Download result"', v712ProcessAction);
+const v712ResultMessage = imageEditorDownloadParity.indexOf("{message ? (", v712ProcessAction);
+if (
+  v712ProcessAction < 0 ||
+  v712DownloadAction <= v712ProcessAction ||
+  v712ResultMessage <= v712DownloadAction
+) {
+  fail("V7.12 download action must render after the main action and before result notices");
+}
+
 const htmlEditorDownloadParity = read("src/components/HtmlToImageEditor.tsx");
 markers("download parity v7.11 HTML editor", htmlEditorDownloadParity, [
   "AJN BUZZ V7.11 DOWNLOAD PARITY",
