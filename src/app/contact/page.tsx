@@ -1,0 +1,3 @@
+import { buildPageMetadata } from '@/lib/seo';
+export const metadata = buildPageMetadata({ title: 'Contact AJN Buzz', description: 'AJN Buzz contact and support information for image-tool questions.', path: '/contact', index: true });
+import {Page} from '@/components/Shell';export default function Contact(){return <Page><main className="section"><div className="container" style={{maxWidth:800}}><div className="eyebrow">Contact</div><h1 className="page-title">AJN Buzz support.</h1><p className="lead">Configure your public support email or contact destination before production deployment. This local build intentionally does not invent a support address.</p></div></main></Page>}

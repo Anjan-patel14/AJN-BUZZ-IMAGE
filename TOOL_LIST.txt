@@ -1,0 +1,42 @@
+AJN BUZZ IMAGE V6.1 — 30 PUBLIC TOOLS
+======================================
+
+OPTIMIZE
+1. Compress Image
+2. Compress Image to KB
+3. Resize Image
+4. Upscale Image
+
+PHOTO SIZE
+5. Resize Image in CM
+6. Resize Image in MM
+7. Resize Image in Inches
+8. Photo Size Converter (PX / CM / MM / Inches + DPI)
+9. Passport Photo Maker
+10. ID Photo Maker
+11. 35 × 45 mm Photo
+12. 2 × 2 Inch Photo
+13. DPI Changer
+
+SIGNATURE
+14. Signature Maker (Draw or Upload)
+15. Upload Signature & Crop
+16. Signature Resize
+17. Signature Size Reducer
+18. Signature Background Remover
+19. Signature to PNG
+
+EDIT
+20. Crop Image
+21. Aspect Ratio Crop
+22. Photo Editor
+23. Watermark Image
+24. Remove Background
+25. Change Photo Background
+26. Rotate & Flip Image
+27. Remove Image Metadata
+
+CONVERT
+28. Convert Image
+29. Image to JPG
+30. JPG to PNG / WebP

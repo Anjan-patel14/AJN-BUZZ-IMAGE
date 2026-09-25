@@ -1,0 +1,18 @@
+AJN BUZZ IMAGE V6.1 — PACKAGE VERIFICATION
+===========================================
+PASS: Source contract verifier
+PASS: 30 unique tool registry entries
+PASS: TypeScript parser accepted all 36 TS/TSX source files
+PASS: Pure unit conversion tests:
+      35 mm @ 300 DPI = 413 px
+      45 mm @ 300 DPI = 531 px
+      2 inch @ 300 DPI = 600 px
+      3.5 cm @ 300 DPI = 413 px
+      4.5 cm @ 300 DPI = 531 px
+PASS: Local-only account/billing/Firebase/Razorpay surfaces remain removed
+
+ENVIRONMENT LIMITATION:
+The artifact execution container did not have this project's npm dependencies available,
+so the full Next.js dependency install/typecheck/production build could not be completed here.
+START_LOCAL.ps1 performs the full pinned npm install, source verification, TypeScript check,
+optimized Next.js build, dev-server launch and 30-route localhost acceptance on Windows.

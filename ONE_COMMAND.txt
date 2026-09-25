@@ -1,0 +1,10 @@
+AJN BUZZ V6.1 — ONE WINDOWS POWERSHELL COMMAND
+===============================================
+
+Place AJN_BUZZ_IMAGE_V6_1_AJN_BOT_PRODUCTION.zip in your Downloads folder, open PowerShell, and paste this entire single line:
+
+Set-ExecutionPolicy -Scope Process Bypass -Force; $z=Join-Path $env:USERPROFILE 'Downloads\AJN_BUZZ_IMAGE_V6_1_AJN_BOT_PRODUCTION.zip'; $d='C:\Users\Public\AJN_BUZZ_IMAGE_V6_1_AJN_BOT_PRODUCTION'; if(!(Test-Path $z)){throw ('ZIP not found: '+$z)}; Get-NetTCPConnection -LocalPort 9010 -State Listen -ErrorAction SilentlyContinue | ForEach-Object { Stop-Process -Id $_.OwningProcess -Force -ErrorAction SilentlyContinue }; if(Test-Path $d){$b=$d+'_BACKUP_'+(Get-Date -Format 'yyyyMMdd_HHmmss'); Move-Item -LiteralPath $d -Destination $b; Write-Host ('Backup: '+$b) -ForegroundColor Yellow}; Expand-Archive -LiteralPath $z -DestinationPath 'C:\Users\Public' -Force; & (Join-Path $d 'START_LOCAL.ps1')
+
+On first run, START_LOCAL.ps1 securely asks you to paste GEMINI_API_KEY. It stores the key only in .env.local. The release ZIP contains no real API key.
+
+The launcher then installs pinned packages, runs source verification, TypeScript checking and Next build, starts localhost, checks all 30 image tools plus /bot, and opens AJN Bot.

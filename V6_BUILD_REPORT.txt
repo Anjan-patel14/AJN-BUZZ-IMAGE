@@ -1,0 +1,5 @@
+AJN BUZZ V6.1.0 — PHOTO + SIGNATURE + AJN BOT
+
+AJN Bot: Gemini server-side intent mapping to the registered 30-tool catalog. Supported image execution stays browser-local. PDF prompts are recognized and routed to AJN PDF.
+
+Secret handling: GEMINI_API_KEY is read only from .env.local on the server and is not included in the release ZIP.
