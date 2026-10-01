@@ -1,0 +1,22 @@
+AJN BUZZ IMAGE V6.1 — RESULT / DOWNLOAD HARDENING
+===================================================
+
+Changes in this production patch:
+1. Every image workflow now uses one shared explicit browser download function.
+2. The result card appears as soon as a processed result is ready.
+3. Multi-image runs expose completed results immediately instead of waiting for the full batch.
+4. Single-result downloads use a real button-driven Blob download instead of relying only on an <a download> navigation.
+5. Batch ZIP downloads use the same explicit download path.
+6. Share fallback now uses the same reliable download function.
+
+
+Source verification:
+- 30 unique tools: PASS
+- Photo sizing PX/CM/MM/Inches + DPI: PASS
+- Passport/ID/35x45/2x2: PASS
+- Signature workflows: PASS
+- Crop/background/metadata workflows: PASS
+- No account/billing/Firebase surfaces: PASS
+
+
+Full npm install/typecheck/Next production build could not be completed in the build container because package installation timed out. The supplied START_LOCAL.ps1 remains the authoritative Windows verification path and performs the pinned dependency install, source verification, TypeScript check, production build and localhost acceptance.

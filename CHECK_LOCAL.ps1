@@ -3,8 +3,8 @@ $base='http://localhost:9010'
 $canonical='https://www.ajn.buzz'
 $toolIds=@('compress','compress-to-kb','resize','resize-cm','resize-mm','resize-inches','photo-size-converter','crop','aspect-ratio-crop','passport-photo-maker','id-photo-maker','photo-35x45','photo-2x2','dpi-changer','signature-maker','signature-upload-crop','signature-resize','signature-size-reducer','signature-background-remover','signature-to-png','photo-editor','watermark','background-remover','change-background','upscale','rotate','remove-metadata','convert','convert-to-jpg','jpg-to-png')
 $toolRoutes=$toolIds | ForEach-Object {"/tools/$_"}
-$routes=@('/','/tools','/features','/favorites','/recent','/presets','/help','/faq','/about','/status','/privacy','/terms','/contact','/robots.txt','/sitemap.xml','/manifest.webmanifest','/ads.txt','/app-ads.txt','/api/health','/api/config','/bot') + $toolRoutes
-$removed=@('/workspace','/pricing','/login','/signup','/forgot-password','/account','/account/profile','/account/security','/account/billing','/admin','/api/billing/status','/api/billing/order')
+$routes=@('/','/tools','/features','/favorites','/recent','/presets','/help','/faq','/about','/status','/privacy','/terms','/contact','/robots.txt','/sitemap.xml','/manifest.webmanifest','/ads.txt','/app-ads.txt','/api/health','/api/config','/image-sitemap.xml') + $toolRoutes
+$removed=@('/bot','/workspace','/pricing','/login','/signup','/forgot-password','/account','/account/profile','/account/security','/account/billing','/admin','/api/billing/status','/api/billing/order')
 $failed=0
 
 foreach($route in $routes){
@@ -17,8 +17,8 @@ foreach($route in $routes){
 
 try{
   $health=Invoke-RestMethod "$base/api/health" -TimeoutSec 15
-  if($health.public_tools -eq 30 -and $health.version -eq '6.1.0' -and $health.account_required -eq $false -and $health.photo_signature_suite -eq $true -and $health.dpi_tools -eq $true -and $health.signature_tools -eq $true -and $health.photo_presets -eq $true){
-    Write-Host '[PASS] API reports V6.1 + 30 tools + photo/signature/DPI suite' -ForegroundColor Green
+  if($health.public_tools -eq 30 -and $health.version -eq '6.2.0' -and $health.account_required -eq $false -and $health.photo_signature_suite -eq $true -and $health.dpi_tools -eq $true -and $health.signature_tools -eq $true -and $health.photo_presets -eq $true){
+    Write-Host '[PASS] API reports V6.2 + 30 tools + photo/signature/DPI suite' -ForegroundColor Green
   }else{$failed++;Write-Host "[FAIL] API state = $($health | ConvertTo-Json -Compress)" -ForegroundColor Red}
 }catch{$failed++;Write-Host '[FAIL] Could not validate API production state' -ForegroundColor Red}
 
@@ -36,9 +36,9 @@ try{
   else{$failed++;Write-Host "[FAIL] sitemap missing=$($missing -join ',') privateLeak=$privateLeak" -ForegroundColor Red}
 }catch{$failed++;Write-Host '[FAIL] Could not validate sitemap.xml' -ForegroundColor Red}
 
-try{$robots=(Invoke-WebRequest "$base/robots.txt" -UseBasicParsing -TimeoutSec 15).Content;if($robots -match 'https://www\.ajn\.buzz/sitemap\.xml' -and $robots -match 'Disallow: /api/'){Write-Host '[PASS] robots.txt SEO contract' -ForegroundColor Green}else{$failed++;Write-Host '[FAIL] robots.txt SEO contract mismatch' -ForegroundColor Red}}catch{$failed++;Write-Host '[FAIL] Could not validate robots.txt' -ForegroundColor Red}
+try{$robots=(Invoke-WebRequest "$base/robots.txt" -UseBasicParsing -TimeoutSec 15).Content;if($robots -match 'https://www\.ajn\.buzz/sitemap\.xml' -and $robots -match 'https://www\.ajn\.buzz/image-sitemap\.xml' -and $robots -match 'Disallow: /api/'){Write-Host '[PASS] robots.txt SEO contract' -ForegroundColor Green}else{$failed++;Write-Host '[FAIL] robots.txt SEO contract mismatch' -ForegroundColor Red}}catch{$failed++;Write-Host '[FAIL] Could not validate robots.txt' -ForegroundColor Red}
 
 foreach($route in $removed){try{Invoke-WebRequest ($base+$route) -UseBasicParsing -MaximumRedirection 0 -TimeoutSec 15 | Out-Null;$failed++;Write-Host "[FAIL] Removed route still resolves: $route" -ForegroundColor Red}catch{$status=$_.Exception.Response.StatusCode.value__;if($status -eq 404){Write-Host "[PASS] Removed route 404: $route" -ForegroundColor Green}else{Write-Host "[INFO] Removed route $route returned HTTP $status" -ForegroundColor Yellow}}}
 
 if($failed -gt 0){throw "LOCAL ACCEPTANCE FAILED: $failed check(s) failed"}
-Write-Host '[PASS] AJN BUZZ V6.1 localhost acceptance complete' -ForegroundColor Green
+Write-Host '[PASS] AJN BUZZ V6.2 localhost acceptance complete' -ForegroundColor Green

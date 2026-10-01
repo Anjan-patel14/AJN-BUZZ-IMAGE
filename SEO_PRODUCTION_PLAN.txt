@@ -1,0 +1,31 @@
+AJN BUZZ IMAGE V6.2 SEO PRODUCTION
+
+Primary discovery targets:
+- resize image
+- compress image
+- compress image to KB / MB
+- resize image in CM / MM / inches
+- photo size converter
+- passport photo maker
+- ID photo maker
+- 35x45 photo
+- 2x2 photo
+- DPI changer
+- signature maker
+- signature resize / size reducer / background remover / PNG
+- crop image / aspect ratio crop
+- photo editor / watermark
+- remove background / change photo background
+- upscale image / rotate image / remove image metadata
+- image to JPG / JPG to PNG / JPG to WebP
+
+Implementation:
+- Dedicated crawlable route for every public tool.
+- Unique tool title, description, keywords, H1 and task content.
+- Breadcrumb structured data and WebApplication metadata.
+- Dedicated crawlable SVG preview URL for each tool page.
+- Image sitemap at /image-sitemap.xml.
+- Main sitemap at /sitemap.xml.
+- Robots references both sitemaps.
+- Internal links connect categories, popular tools and related tools.
+- No fake ratings, reviews, traffic numbers or user-count claims.
