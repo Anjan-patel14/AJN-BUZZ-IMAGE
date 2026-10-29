@@ -38,6 +38,7 @@ export function ImageEditor({ tool }: { tool: ImageTool }) {
   const [previewUrl, setPreviewUrl] = useState('');
   const [results, setResults] = useState<ProcessedItem[]>([]);
   const [batchUrl, setBatchUrl] = useState('');
+  const [batchBlob, setBatchBlob] = useState<Blob | null>(null);
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
   const [working, setWorking] = useState(false);
@@ -76,6 +77,7 @@ export function ImageEditor({ tool }: { tool: ImageTool }) {
     previewRun.current += 1;
     setPreviewUrl(current => { if (current) revokeObjectUrl(current); return ''; });
     setBatchUrl(current => { if (current) revokeObjectUrl(current); return ''; });
+    setBatchBlob(null);
     setResults(current => { current.forEach(item => revokeObjectUrl(item.url)); return []; });
   }
   function clearSelection() { setFiles([]); setSourceUrl(current => { if (current) revokeObjectUrl(current); return ''; }); clearResults(); }
@@ -147,7 +149,7 @@ export function ImageEditor({ tool }: { tool: ImageTool }) {
         const file=selected[index]!,processed=await processOne(file),ext=outputExt(processed.type),name=`${safeName(file.name)}-${tool.id}.${ext}`,url=makeObjectUrl(processed.blob);
         const item={...processed,name,url,originalSize:file.size};processedItems.push(item);setResults(current=>[...current,item]);setMessage(`${index+1} of ${selected.length} result${selected.length===1?'':'s'} ready.`);setProgress(Math.round(((index+1)/selected.length)*100));
       }
-      if(processedItems.length>1){const zip=new JSZip();for(const item of processedItems)zip.file(item.name,item.blob);const blob=await zip.generateAsync({type:'blob',compression:'DEFLATE',compressionOptions:{level:6}});setBatchUrl(makeObjectUrl(blob));}
+      if(processedItems.length>1){const zip=new JSZip();for(const item of processedItems)zip.file(item.name,item.blob);const blob=await zip.generateAsync({type:'blob',compression:'DEFLATE',compressionOptions:{level:6}});setBatchBlob(blob);setBatchUrl(makeObjectUrl(blob));}
       const notes=processedItems.map(item=>item.note).filter(Boolean);setMessage(notes[0]||`${processedItems.length} result${processedItems.length===1?'':'s'} ready.`);
     }catch(reason){setError(reason instanceof Error?reason.message:'Image processing failed.');}finally{setWorking(false);setProgress(100);}
   }
@@ -162,7 +164,7 @@ export function ImageEditor({ tool }: { tool: ImageTool }) {
   async function shareResult(item:ProcessedItem){try{const file=new File([item.blob],item.name,{type:item.type});if(navigator.share&&(!navigator.canShare||navigator.canShare({files:[file]})))await navigator.share({title:tool.name,files:[file]});else{downloadBlob(item.blob,item.name);setMessage('Direct file sharing is unavailable in this browser, so the result was downloaded.');}}catch(reason){if((reason as Error)?.name!=='AbortError')setError('Sharing is not available for this result.');}}
 
   function drawPoint(event:ReactPointerEvent<HTMLCanvasElement>){const canvas=drawCanvas.current;if(!canvas||!drawing.current)return;const rect=canvas.getBoundingClientRect(),ctx=canvas.getContext('2d');if(!ctx)return;const x=(event.clientX-rect.left)*canvas.width/rect.width,y=(event.clientY-rect.top)*canvas.height/rect.height;ctx.lineTo(x,y);ctx.stroke();}
-  function drawStart(event:ReactPointerEvent<HTMLCanvasElement>){const canvas=drawCanvas.current;if(!canvas)return;canvas.setPointerCapture(event.pointerId);const rect=canvas.getBoundingClientRect(),ctx=canvas.getContext('2d');if(!ctx)return;const x=(event.clientX-rect.left)*canvas.width/rect.width,y=(event.clientY-rect.top)*canvas.height/rect.height;ctx.strokeStyle='#111111';ctx.lineWidth=6;ctx.lineCap='round';ctx.lineJoin='round';ctx.beginPath();ctx.moveTo(x,y);drawing.current=true;}
+  function drawStart(event:ReactPointerEvent<HTMLCanvasElement>){const canvas=drawCanvas.current;if(!canvas)return;canvas.setPointerCapture(event.pointerId);const rect=canvas.getBoundingClientRect(),ctx=canvas.getContext('2d');if(!ctx)return;const x=(event.clientX-rect.left)*canvas.width/rect.width,y=(event.clientY-rect.top)*canvas.height/rect.height;ctx.strokeStyle='#111111';ctx.lineWidth=6;ctx.lineCap='round';ctx.lineJoin='round';ctx.beginPath();ctx.moveTo(x,y);ctx.lineTo(x,y);ctx.stroke();drawing.current=true;}
   function drawEnd(){drawing.current=false;drawCanvas.current?.getContext('2d')?.closePath();}
   function clearDrawing(){const canvas=drawCanvas.current;if(canvas)canvas.getContext('2d')?.clearRect(0,0,canvas.width,canvas.height);}
   async function useDrawing(){const canvas=drawCanvas.current;if(!canvas)return;const blob=await new Promise<Blob|null>(resolve=>canvas.toBlob(resolve,'image/png'));if(!blob){setError('Could not create the drawn signature.');return;}await choose([new File([blob],'drawn-signature.png',{type:'image/png'})]);}
@@ -234,7 +236,7 @@ export function ImageEditor({ tool }: { tool: ImageTool }) {
       {working?<button className="btn" onClick={()=>{cancelled.current=true}}><X size={17}/> Cancel</button>:null}
       {error?<div className="error" role="alert">{error}</div>:null}
       {message?<div className={`notice ${firstResult?.targetReached===false?'warning':''}`}>{message}</div>:null}
-      {firstResult?<div className="result-ready" aria-live="polite"><div><Check size={16}/><div><b>{results.length>1?'Results ready':'Result ready'}</b><span>{results.length>1?`${results.length} files processed`:`${formatBytes(firstResult.blob.size)} · ${outputExt(firstResult.type).toUpperCase()}`}</span></div></div><div className="result-actions">{results.length===1?<><button type="button" className="btn success" onClick={()=>downloadBlob(firstResult.blob,firstResult.name)}><Download size={18}/> Download</button><a className="btn" href={firstResult.url} target="_blank" rel="noopener noreferrer"><Eye size={18}/> Preview</a><button type="button" className="btn" onClick={()=>void shareResult(firstResult)}><Share2 size={18}/> Share</button></>:batchUrl?<button type="button" className="btn success" onClick={()=>{fetch(batchUrl).then(response=>response.blob()).then(blob=>downloadBlob(blob,`ajn-buzz-${tool.id}-${Date.now()}.zip`)).catch(()=>setError('The ZIP download could not be prepared.'));}}><FileArchive size={18}/> Download {results.length} results</button>:null}<button type="button" className="btn" onClick={processAnother}><RefreshCcw size={18}/> Process another</button></div></div>:null}
+      {firstResult?<div className="result-ready" aria-live="polite"><div><Check size={16}/><div><b>{results.length>1?'Results ready':'Result ready'}</b><span>{results.length>1?`${results.length} files processed`:`${formatBytes(firstResult.blob.size)} · ${outputExt(firstResult.type).toUpperCase()}`}</span></div></div><div className="result-actions">{results.length===1?<><button type="button" className="btn success" onClick={()=>downloadBlob(firstResult.blob,firstResult.name)}><Download size={18}/> Download</button><a className="btn" href={firstResult.url} target="_blank" rel="noopener noreferrer"><Eye size={18}/> Preview</a><button type="button" className="btn" onClick={()=>void shareResult(firstResult)}><Share2 size={18}/> Share</button></>:batchBlob?<button type="button" className="btn success" onClick={()=>downloadBlob(batchBlob,`ajn-buzz-${tool.id}-${Date.now()}.zip`)}><FileArchive size={18}/> Download {results.length} results</button>:null}<button type="button" className="btn" onClick={processAnother}><RefreshCcw size={18}/> Process another</button></div></div>:null}
       <div className="privacy-note"><ShieldMini/><div><b>Browser processing</b><span>No sign-in required.</span></div></div>
     </aside>
   </div>;

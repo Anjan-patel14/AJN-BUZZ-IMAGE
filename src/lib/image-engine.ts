@@ -203,23 +203,53 @@ function drawCover(source: CanvasImageSource, sourceWidth: number, sourceHeight:
 }
 
 function edgeBackgroundTransparency(canvas: HTMLCanvasElement, selectedColor?: string, tolerance = 42) {
-  const ctx = context2d(canvas, true); const pixels = ctx.getImageData(0,0,canvas.width,canvas.height);
-  const sample = selectedColor ? hexToRgb(selectedColor) : (() => {
-    const positions=[0,(canvas.width-1)*4,((canvas.height-1)*canvas.width)*4,((canvas.height*canvas.width)-1)*4];
-    const sum=positions.reduce((a,p)=>({r:a.r+pixels.data[p]!,g:a.g+pixels.data[p+1]!,b:a.b+pixels.data[p+2]!}),{r:0,g:0,b:0});
-    return {r:Math.round(sum.r/4),g:Math.round(sum.g/4),b:Math.round(sum.b/4)};
-  })();
-  const limit=Math.min(220,Math.max(5,tolerance)); const width=canvas.width,height=canvas.height,count=width*height; const connected=new Uint8Array(count);
-  const matches=(index:number)=>{const i=index*4,dr=pixels.data[i]!-sample.r,dg=pixels.data[i+1]!-sample.g,db=pixels.data[i+2]!-sample.b;return Math.sqrt(dr*dr+dg*dg+db*db)<=limit;};
-  for(let x=0;x<width;x++){if(matches(x))connected[x]=1;const b=(height-1)*width+x;if(matches(b))connected[b]=1;}
-  for(let y=0;y<height;y++){const l=y*width,r=l+width-1;if(matches(l))connected[l]=1;if(matches(r))connected[r]=1;}
-  for(let sweep=0;sweep<4;sweep++){
-    for(let y=0;y<height;y++)for(let x=0;x<width;x++){const index=y*width+x;if(connected[index]||!matches(index))continue;if((x>0&&connected[index-1])||(y>0&&connected[index-width]))connected[index]=1;}
-    for(let y=height-1;y>=0;y--)for(let x=width-1;x>=0;x--){const index=y*width+x;if(connected[index]||!matches(index))continue;if((x+1<width&&connected[index+1])||(y+1<height&&connected[index+width]))connected[index]=1;}
+  const ctx = context2d(canvas, true);
+  const pixels = ctx.getImageData(0, 0, canvas.width, canvas.height);
+  const data = pixels.data;
+  const width = canvas.width, height = canvas.height, count = width * height;
+
+  const cornerPositions = [0, (width - 1) * 4, (height - 1) * width * 4, (height * width - 1) * 4];
+  const transparentCorners = cornerPositions.filter(p => data[p + 3]! < 20).length;
+
+  if (!selectedColor && transparentCorners === 4) {
+    return canvas;
   }
-  for(let index=0;index<count;index++)if(connected[index])pixels.data[index*4+3]=0;
-  ctx.putImageData(pixels,0,0); return canvas;
+
+  let sample: { r: number; g: number; b: number };
+  if (selectedColor) {
+    sample = hexToRgb(selectedColor);
+  } else {
+    const opaqueCorners = cornerPositions.filter(p => data[p + 3]! >= 20);
+    if (opaqueCorners.length === 0) return canvas;
+    const sum = opaqueCorners.reduce((a, p) => ({ r: a.r + data[p]!, g: a.g + data[p + 1]!, b: a.b + data[p + 2]! }), { r: 0, g: 0, b: 0 });
+    sample = { r: Math.round(sum.r / opaqueCorners.length), g: Math.round(sum.g / opaqueCorners.length), b: Math.round(sum.b / opaqueCorners.length) };
+  }
+
+  const limit = Math.min(220, Math.max(5, tolerance));
+  const connected = new Uint8Array(count);
+
+  const matches = (index: number) => {
+    const i = index * 4;
+    if (data[i + 3]! < 20) return false;
+    const dr = data[i]! - sample.r;
+    const dg = data[i + 1]! - sample.g;
+    const db = data[i + 2]! - sample.b;
+    return Math.sqrt(dr * dr + dg * dg + db * db) <= limit;
+  };
+
+  for (let x = 0; x < width; x++) { if (matches(x)) connected[x] = 1; const b = (height - 1) * width + x; if (matches(b)) connected[b] = 1; }
+  for (let y = 0; y < height; y++) { const l = y * width, r = l + width - 1; if (matches(l)) connected[l] = 1; if (matches(r)) connected[r] = 1; }
+
+  for (let sweep = 0; sweep < 4; sweep++) {
+    for (let y = 0; y < height; y++) for (let x = 0; x < width; x++) { const index = y * width + x; if (connected[index] || !matches(index)) continue; if ((x > 0 && connected[index - 1]) || (y > 0 && connected[index - width])) connected[index] = 1; }
+    for (let y = height - 1; y >= 0; y--) for (let x = width - 1; x >= 0; x--) { const index = y * width + x; if (connected[index] || !matches(index)) continue; if ((x + 1 < width && connected[index + 1]) || (y + 1 < height && connected[index + width])) connected[index] = 1; }
+  }
+
+  for (let index = 0; index < count; index++) if (connected[index]) data[index * 4 + 3] = 0;
+  ctx.putImageData(pixels, 0, 0);
+  return canvas;
 }
+
 
 function trimSignature(source: HTMLCanvasElement, margin = 12) {
   const ctx=context2d(source,true), pixels=ctx.getImageData(0,0,source.width,source.height), data=pixels.data;
