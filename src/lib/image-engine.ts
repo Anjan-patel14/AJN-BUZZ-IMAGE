@@ -316,20 +316,21 @@ export async function processImage(file: File, tool: ImageTool, options: ImageOp
       canvas=drawDecoded(decoded);edgeBackgroundTransparency(canvas,undefined,Number(options.amount||48));canvas=trimSignature(canvas,Number(options.trimMargin??10));
     } else if(tool.workflow==='photo-editor'){
       canvas=makeCanvas(decoded.width,decoded.height);const ctx=context2d(canvas);ctx.filter=[`brightness(${Math.max(0,Number(options.brightness??100))}%)`,`contrast(${Math.max(0,Number(options.contrast??100))}%)`,`saturate(${Math.max(0,Number(options.saturation??100))}%)`,`blur(${Math.max(0,Number(options.blur??0))}px)`].join(' ');drawHighQuality(ctx,decoded.source,decoded.width,decoded.height);ctx.filter='none';
-    } else if(tool.workflow==='watermark'){
-      canvas=drawDecoded(decoded);const ctx=context2d(canvas),text=(options.text||'AJN Buzz').slice(0,120),size=Math.max(12,Number(options.fontSize||Math.max(24,Math.round(decoded.width/18)))),position=options.position||'center',margin=Math.max(18,Math.round(Math.min(decoded.width,decoded.height)*.035));const x=position.endsWith('left')?margin:position.endsWith('right')?decoded.width-margin:decoded.width/2,y=position.startsWith('top')?margin:position.startsWith('bottom')?decoded.height-margin:decoded.height/2;ctx.save();ctx.globalAlpha=Math.min(1,Math.max(.05,Number(options.opacity??.55)));ctx.font=`800 ${size}px Inter, Arial, sans-serif`;ctx.textAlign=position.endsWith('left')?'left':position.endsWith('right')?'right':'center';ctx.textBaseline=position.startsWith('top')?'top':position.startsWith('bottom')?'bottom':'middle';ctx.fillStyle=options.color||'#ffffff';ctx.shadowColor='rgba(0,0,0,.45)';ctx.shadowBlur=6;ctx.translate(x,y);if(position==='center')ctx.rotate(-Math.PI/8);ctx.fillText(text,0,0,decoded.width*.9);ctx.restore();
-    } else if(tool.workflow==='remove-bg'){
-      canvas=drawDecoded(decoded);edgeBackgroundTransparency(canvas,options.color,Number(options.amount||42));
-    } else if(tool.workflow==='change-bg'){
-      const transparent=drawDecoded(decoded);edgeBackgroundTransparency(transparent,undefined,Number(options.amount||42));canvas=makeCanvas(decoded.width,decoded.height);const ctx=context2d(canvas);ctx.fillStyle=options.backgroundColor||'#ffffff';ctx.fillRect(0,0,canvas.width,canvas.height);ctx.drawImage(transparent,0,0);
+    } else if(tool.workflow==='text-overlay'){
+      canvas=drawDecoded(decoded);const ctx=context2d(canvas),text=(options.text||'AJN Buzz').slice(0,250),size=Math.max(12,Number(options.fontSize||Math.max(24,Math.round(decoded.width/18)))),position=options.position||'center',margin=Math.max(18,Math.round(Math.min(decoded.width,decoded.height)*.035));const x=position.endsWith('left')?margin:position.endsWith('right')?decoded.width-margin:decoded.width/2,y=position.startsWith('top')?margin:position.startsWith('bottom')?decoded.height-margin:decoded.height/2;ctx.save();ctx.globalAlpha=Math.min(1,Math.max(.05,Number(options.opacity??.9)));ctx.font=`800 ${size}px Inter, Arial, sans-serif`;ctx.textAlign=position.endsWith('left')?'left':position.endsWith('right')?'right':'center';ctx.textBaseline=position.startsWith('top')?'top':position.startsWith('bottom')?'bottom':'middle';ctx.fillStyle=options.color||'#ffffff';ctx.shadowColor='rgba(0,0,0,.45)';ctx.shadowBlur=6;ctx.fillText(text,x,y,decoded.width*.9);ctx.restore();
+    } else if(tool.workflow==='dimension-check'||tool.workflow==='quality-check'){
+      canvas=drawDecoded(decoded);
     } else if(tool.workflow==='upscale'){
       const scale=Math.min(4,Math.max(2,Math.round(options.amount||2)));canvas=drawDecoded(decoded,decoded.width*scale,decoded.height*scale);
     } else if(tool.workflow==='rotate'){
       const angle=((Number(options.angle??90)%360)+360)%360,swap=angle===90||angle===270,w=swap?decoded.height:decoded.width,h=swap?decoded.width:decoded.height,rotated=makeCanvas(w,h),rctx=context2d(rotated);rctx.translate(w/2,h/2);rctx.rotate(angle*Math.PI/180);rctx.drawImage(decoded.source,-decoded.width/2,-decoded.height/2);const flip=options.flip||'none';if(flip==='none')canvas=rotated;else{canvas=makeCanvas(w,h);const ctx=context2d(canvas);if(flip==='horizontal'){ctx.translate(w,0);ctx.scale(-1,1);}else{ctx.translate(0,h);ctx.scale(1,-1);}ctx.drawImage(rotated,0,0);}
-    } else if(['remove-metadata','convert','to-jpg','jpg-to-png'].includes(tool.workflow)){
+    } else if(['remove-metadata','convert','to-jpg','jpg-to-png','change-bg'].includes(tool.workflow)){
       canvas=drawDecoded(decoded);
     } else throw new Error(`Unsupported image workflow: ${tool.workflow}`);
     let blob=await canvasBlob(canvas,type,quality);if(tool.workflow==='dpi'||tool.workflow==='photo-preset'||tool.workflow==='resize-physical'||tool.workflow==='photo-size'||tool.workflow==='signature-resize')blob=await applyDpi(blob,type,dpi);
-    return {blob,width:canvas.width,height:canvas.height,type,note:tool.workflow==='remove-metadata'?'Source EXIF/GPS metadata was not copied to the new image.':tool.workflow==='dpi'?`Density metadata set to ${Math.round(dpi)} DPI.`:undefined};
+    const aspect=(decoded.width/decoded.height).toFixed(2);
+    const orientation=decoded.width>decoded.height?'Landscape':decoded.width<decoded.height?'Portrait':'Square';
+    const noteText=tool.workflow==='dimension-check'?`Dimensions: ${decoded.width} × ${decoded.height} px · Aspect: ${aspect} · Orientation: ${orientation}`:tool.workflow==='quality-check'?`File Analysis: ${decoded.width} × ${decoded.height} px · Format: ${file.type||'image/unknown'} · Orientation: ${orientation}`:tool.workflow==='remove-metadata'?'Source EXIF/GPS metadata was not copied to the new image.':tool.workflow==='dpi'?`Density metadata set to ${Math.round(dpi)} DPI.`:undefined;
+    return {blob,width:canvas.width,height:canvas.height,type,note:noteText};
   } finally { decoded.close?.(); }
 }

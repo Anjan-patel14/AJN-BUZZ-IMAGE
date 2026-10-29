@@ -1,3 +1,43 @@
 import { buildPageMetadata } from '@/lib/seo';
-export const metadata = buildPageMetadata({ title: 'Contact AJN Buzz', description: 'AJN Buzz contact and support information for image-tool questions.', path: '/contact', index: true });
-import {Page} from '@/components/Shell';export default function Contact(){return <Page><main className="section"><div className="container" style={{maxWidth:800}}><div className="eyebrow">Contact</div><h1 className="page-title">AJN Buzz support.</h1><p className="lead">Configure your public support email or contact destination before production deployment. This local build intentionally does not invent a support address.</p></div></main></Page>}
+import { Page } from '@/components/Shell';
+import Link from 'next/link';
+
+export const metadata = buildPageMetadata({
+  title: 'Contact Us — AJN BUZZ IMAGE',
+  description: 'Get in touch with AJN BUZZ IMAGE support for questions, feedback, or tool assistance.',
+  path: '/contact',
+  index: true,
+});
+
+export default function Contact() {
+  return (
+    <Page>
+      <main className="section page-top">
+        <div className="container narrow">
+          <div className="eyebrow">Contact Support</div>
+          <h1 className="page-title">We are here to help.</h1>
+          <p className="lead">
+            Have questions about a specific image tool, file size compression, or passport photo formatting? Reach out to the AJN BUZZ support team.
+          </p>
+
+          <div className="help-stack" style={{ marginTop: 28 }}>
+            <section className="help-card">
+              <h2>Support Email</h2>
+              <p>
+                For technical inquiries, bug reports, or feature requests, contact us directly at: <br />
+                <a href="mailto:support@ajn.buzz" style={{ color: 'var(--brand)', fontWeight: 700 }}><b>support@ajn.buzz</b></a>
+              </p>
+            </section>
+
+            <section className="help-card">
+              <h2>Frequently Asked Questions</h2>
+              <p>
+                Many common questions about target file-size compression, browser-local privacy, and supported formats are answered in our <Link href="/faq"><b>FAQ center</b></Link> and <Link href="/help"><b>Help guide</b></Link>.
+              </p>
+            </section>
+          </div>
+        </div>
+      </main>
+    </Page>
+  );
+}

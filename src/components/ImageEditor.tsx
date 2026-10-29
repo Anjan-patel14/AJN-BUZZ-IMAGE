@@ -85,8 +85,7 @@ export function ImageEditor({ tool }: { tool: ImageTool }) {
   const effectiveOptions = useMemo<ImageOptions>(() => ({
     ...options,
     format: forcedType || options.format,
-    ...(tool.workflow === 'remove-bg' && autoBackground ? { color: undefined } : {}),
-  }), [options, forcedType, tool.workflow, autoBackground]);
+  }), [options, forcedType]);
 
   const targetBytes = useMemo(() => Math.round(Math.max(0,targetValue) * (targetUnit === 'MB' ? 1024*1024 : 1024)), [targetUnit,targetValue]);
   const calculatedPixels = useMemo(() => {
@@ -118,14 +117,14 @@ export function ImageEditor({ tool }: { tool: ImageTool }) {
     try {
       const dimensions = await imageDimensions(first); setRatio(dimensions.width/dimensions.height);
       setOptions(current => {
-        const preserve = !['convert','to-jpg','jpg-to-png','remove-bg','signature-maker','signature-trim','signature-remove-bg','signature-png','dpi'].includes(tool.workflow);
+        const preserve = !['convert','to-jpg','jpg-to-png','signature-maker','signature-trim','signature-remove-bg','signature-png','dpi'].includes(tool.workflow);
         const nextFormat = preserve ? sourceFormat(first) || current.format : current.format;
         return {
           ...current,
           ...(nextFormat ? {format:nextFormat}:{}),
           ...(tool.workflow==='resize-px'?{width:dimensions.width,height:dimensions.height}:{}),
           ...(tool.workflow==='crop'?{cropX:0,cropY:0,cropWidth:dimensions.width,cropHeight:dimensions.height}:{}),
-          ...(tool.workflow==='watermark'?{fontSize:Math.min(220,Math.max(24,Math.round(dimensions.width/18)))}:{}),
+          ...(tool.workflow==='text-overlay'?{fontSize:Math.min(220,Math.max(24,Math.round(dimensions.width/18)))}:{}),
         };
       });
     } catch (reason) { setError(reason instanceof Error ? reason.message : 'Image could not be decoded.'); return; }
@@ -171,8 +170,8 @@ export function ImageEditor({ tool }: { tool: ImageTool }) {
 
   const firstResult=results[0];
   const savings=firstResult?Math.round((1-firstResult.blob.size/Math.max(1,firstResult.originalSize))*100):null;
-  const actionLabel=tool.workflow==='compress'||tool.workflow==='compress-target'||tool.workflow==='signature-compress'?'Compress':tool.workflow==='convert'||tool.workflow==='to-jpg'||tool.workflow==='jpg-to-png'?'Convert':tool.workflow==='remove-bg'?'Remove background':tool.workflow==='change-bg'?'Change background':tool.workflow==='dpi'?'Set DPI':'Process';
-  const showQuality=!['remove-bg','signature-maker','signature-trim','signature-remove-bg','signature-png','dpi'].includes(tool.workflow) && (effectiveOptions.format==='image/jpeg'||effectiveOptions.format==='image/webp');
+  const actionLabel=tool.workflow==='compress'||tool.workflow==='compress-target'||tool.workflow==='signature-compress'?'Compress':tool.workflow==='convert'||tool.workflow==='to-jpg'||tool.workflow==='jpg-to-png'?'Convert':tool.workflow==='dpi'?'Set DPI':'Process';
+  const showQuality=!['signature-maker','signature-trim','signature-remove-bg','signature-png','dpi'].includes(tool.workflow) && (effectiveOptions.format==='image/jpeg'||effectiveOptions.format==='image/webp');
   const physicalWorkflow=['resize-physical','photo-size','signature-resize'].includes(tool.workflow);
   const photoPreset=tool.workflow==='photo-preset';
   const dedicatedPreset=tool.id==='photo-35x45'||tool.id==='photo-2x2';
@@ -222,10 +221,10 @@ export function ImageEditor({ tool }: { tool: ImageTool }) {
       {tool.workflow==='signature-remove-bg'?<>{rangeField('amount','Background tolerance',5,220,1)}{numberField('trimMargin','Trim margin (px)',0,200,1)}</>:null}
       {tool.workflow==='rotate'?<><div className="field"><label>Rotate</label><select value={options.angle} onChange={event=>setOptions(current=>({...current,angle:Number(event.target.value)}))}><option value="0">0° (flip only)</option><option value="90">90° clockwise</option><option value="180">180°</option><option value="270">270° clockwise</option></select></div><div className="field"><label>Flip after rotation</label><select value={options.flip||'none'} onChange={event=>setOptions(current=>({...current,flip:event.target.value as ImageOptions['flip']}))}><option value="none">No flip</option><option value="horizontal">Flip horizontally</option><option value="vertical">Flip vertically</option></select></div></>:null}
       {tool.workflow==='upscale'?<div className="field"><label>Scale</label><select value={options.amount} onChange={event=>setOptions(current=>({...current,amount:Number(event.target.value)}))}><option value="2">2×</option><option value="3">3×</option><option value="4">4×</option></select></div>:null}
-      {tool.workflow==='watermark'?<><div className="field"><label>Watermark text</label><input maxLength={120} value={options.text||''} onChange={event=>setOptions(current=>({...current,text:event.target.value}))} placeholder="AJN Buzz"/></div><div className="field"><label>Position</label><select value={options.position||'center'} onChange={event=>setOptions(current=>({...current,position:event.target.value as ImageOptions['position']}))}><option value="center">Center</option><option value="top-left">Top left</option><option value="top-right">Top right</option><option value="bottom-left">Bottom left</option><option value="bottom-right">Bottom right</option></select></div><div className="row">{numberField('fontSize','Font size',12,400)}<div className="field"><label>Colour</label><input type="color" value={options.color||'#ffffff'} onChange={event=>setOptions(current=>({...current,color:event.target.value}))}/></div></div>{rangeField('opacity','Opacity',.05,1,.05)}</>:null}
+      {tool.workflow==='text-overlay'?<><div className="field"><label>Overlay text</label><input maxLength={250} value={options.text||''} onChange={event=>setOptions(current=>({...current,text:event.target.value}))} placeholder="Enter your text here..."/></div><div className="field"><label>Position</label><select value={options.position||'center'} onChange={event=>setOptions(current=>({...current,position:event.target.value as ImageOptions['position']}))}><option value="center">Center</option><option value="top-left">Top left</option><option value="top-right">Top right</option><option value="bottom-left">Bottom left</option><option value="bottom-right">Bottom right</option></select></div><div className="row">{numberField('fontSize','Font size',12,500)}<div className="field"><label>Text colour</label><input type="color" value={options.color||'#ffffff'} onChange={event=>setOptions(current=>({...current,color:event.target.value}))}/></div></div>{rangeField('opacity','Opacity',.05,1,.05)}</>:null}
       {tool.workflow==='photo-editor'?<>{rangeField('brightness','Brightness',0,200)}{rangeField('contrast','Contrast',0,200)}{rangeField('saturation','Saturation',0,200)}{rangeField('blur','Blur',0,30)}</>:null}
-      {tool.workflow==='remove-bg'?<><label className="check"><input type="checkbox" checked={autoBackground} onChange={event=>setAutoBackground(event.target.checked)}/>Auto-sample image corners</label>{!autoBackground?<div className="field"><label>Background colour</label><input type="color" value={options.color||'#ffffff'} onChange={event=>setOptions(current=>({...current,color:event.target.value}))}/></div>:null}{rangeField('amount','Tolerance',5,220,1)}</>:null}
-      {tool.workflow==='change-bg'?<><div className="field"><label>New background colour</label><div className="background-presets"><button type="button" onClick={()=>setOptions(c=>({...c,backgroundColor:'#ffffff'}))}>White</button><button type="button" onClick={()=>setOptions(c=>({...c,backgroundColor:'#4f86f7'}))}>Blue</button><input type="color" value={options.backgroundColor||'#ffffff'} onChange={event=>setOptions(c=>({...c,backgroundColor:event.target.value}))}/></div></div>{rangeField('amount','Detection tolerance',5,220,1)}<small className="muted">Designed for plain or near-flat original backgrounds.</small></>:null}
+      {tool.workflow==='dimension-check'?<div className="notice">Upload an image to inspect actual dimensions, aspect ratio, orientation, and file metadata.</div>:null}
+      {tool.workflow==='quality-check'?<div className="notice">Upload an image to analyze file size, format, dimensions, and test quick browser compression reduction.</div>:null}
       {tool.workflow==='remove-metadata'?<div className="notice">The output is freshly encoded from visible pixels, so source EXIF/GPS metadata is not copied.</div>:null}
 
       {!['compress','compress-target','signature-compress'].includes(tool.workflow)?(tool.workflow==='jpg-to-png'?<div className="field"><label>Output format</label><select value={options.format==='image/webp'?'image/webp':'image/png'} onChange={event=>setOptions(current=>({...current,format:event.target.value as OutputFormat}))}><option value="image/png">PNG</option><option value="image/webp">WebP</option></select></div>:tool.workflow==='dpi'?<div className="field"><label>Output format</label><select value={options.format==='image/jpeg'?'image/jpeg':'image/png'} onChange={event=>setOptions(current=>({...current,format:event.target.value as OutputFormat}))}><option value="image/png">PNG</option><option value="image/jpeg">JPG</option></select></div>:!forcedType?<div className="field"><label>Output format</label><select value={options.format} onChange={event=>setOptions(current=>({...current,format:event.target.value as OutputFormat}))}><option value="image/webp">WebP</option><option value="image/jpeg">JPEG</option><option value="image/png">PNG</option></select></div>:<div className="locked-format"><Check size={16}/><span>Output fixed to {outputExt(forcedType).toUpperCase()}</span></div>):null}

@@ -29,8 +29,8 @@ export default function sitemap(): MetadataRoute.Sitemap {
   const toolEntries: MetadataRoute.Sitemap = IMAGE_TOOLS.map((tool) => ({
     url: `${SITE_URL}/tools/${tool.id}`,
     lastModified: now,
-    changeFrequency: tool.featured ? ('weekly' as const) : ('monthly' as const),
-    priority: tool.featured ? 0.9 : 0.8,
+    changeFrequency: tool.featured ? ('weekly' as const) : ('weekly' as const),
+    priority: tool.featured ? 0.9 : 0.85,
   }));
 
   return [...staticEntries, ...toolEntries];
