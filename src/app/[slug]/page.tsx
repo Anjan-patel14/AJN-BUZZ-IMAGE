@@ -20,7 +20,7 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
   return buildPageMetadata({
     title: tool.seoTitle,
     description: tool.seoDescription,
-    path: `/tools/${tool.id}`,
+    path: `/${tool.id}`,
     index: true,
     keywords: [tool.name, tool.shortName, tool.category, tool.formats, ...tool.seoKeywords],
     image: `/seo-tools/${tool.id}.svg`,
@@ -38,10 +38,10 @@ export default async function ToolPage({ params }: { params: Promise<{ slug: str
     '@graph': [
       {
         '@type': 'WebApplication',
-        '@id': `${SITE_URL}/tools/${tool.id}#app`,
+        '@id': `${SITE_URL}/${tool.id}#app`,
         name: tool.name,
         description: tool.seoDescription,
-        url: `${SITE_URL}/tools/${tool.id}`,
+        url: `${SITE_URL}/${tool.id}`,
         applicationCategory: 'MultimediaApplication',
         operatingSystem: 'Any',
         browserRequirements: 'Requires a modern browser with File and Canvas APIs',
@@ -52,7 +52,7 @@ export default async function ToolPage({ params }: { params: Promise<{ slug: str
         itemListElement: [
           { '@type': 'ListItem', position: 1, name: 'AJN BUZZ IMAGE', item: SITE_URL },
           { '@type': 'ListItem', position: 2, name: 'Image Tools', item: `${SITE_URL}/tools` },
-          { '@type': 'ListItem', position: 3, name: tool.name, item: `${SITE_URL}/tools/${tool.id}` },
+          { '@type': 'ListItem', position: 3, name: tool.name, item: `${SITE_URL}/${tool.id}` },
         ],
       },
       {
@@ -148,7 +148,7 @@ export default async function ToolPage({ params }: { params: Promise<{ slug: str
               </div>
               <div className="related-grid">
                 {related.map(t => (
-                  <Link className="related-card" href={`/tools/${t.id}`} key={t.id}>
+                  <Link className="related-card" href={`/${t.id}`} key={t.id}>
                     <span className="tool-icon small">
                       <ToolIcon name={t.icon} size={18} />
                     </span>

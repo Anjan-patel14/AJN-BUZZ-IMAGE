@@ -111,7 +111,7 @@ const homeGraph = {
     '@type': 'ListItem',
     position: index + 1,
     name: tool.name,
-    url: `${SITE_URL}/tools/${tool.id}`,
+    url: `${SITE_URL}/${tool.id}`,
   })),
 };
 
@@ -178,7 +178,7 @@ export default function Home() {
               <div className="popular-searches" style={{ marginTop: '20px' }}>
                 <span>Popular searches</span>
                 {popularSearches.map((item) => (
-                  <Link key={item.id} href={`/tools/${item.id}`}>
+                  <Link key={item.id} href={`/${item.id}`}>
                     {item.label}
                   </Link>
                 ))}
@@ -278,7 +278,7 @@ export default function Home() {
                     <p>{c.copy}</p>
                     <div className="category-links">
                       {c.links.map((link) => (
-                        <Link key={link.id} href={`/tools/${link.id}`}>
+                        <Link key={link.id} href={`/${link.id}`}>
                           {link.name}
                           <ArrowRight size={13} />
                         </Link>
@@ -373,7 +373,7 @@ export default function Home() {
               {popular.map((id) => {
                 const t = IMAGE_TOOLS.find((x) => x.id === id)!;
                 return (
-                  <Link className="popular-card" href={`/tools/${id}`} key={id}>
+                  <Link className="popular-card" href={`/${id}`} key={id}>
                     <div className="popular-icon">
                       <ToolIconShim name={t.icon} />
                     </div>

@@ -38,10 +38,10 @@ export function Navbar() {
           <Link href="/tools" className="tools-link">
             All Tools
           </Link>
-          <Link href="/tools/compress">Compress</Link>
-          <Link href="/tools/resize">Resize</Link>
-          <Link href="/tools/passport-photo-maker">Passport Photo</Link>
-          <Link href="/tools/signature-maker">Signature</Link>
+          <Link href="/compress">Compress</Link>
+          <Link href="/resize">Resize</Link>
+          <Link href="/passport-photo-maker">Passport Photo</Link>
+          <Link href="/signature-maker">Signature</Link>
           <a
             className="pdf-nav-link"
             href="https://ajnpdf.com"
@@ -75,16 +75,16 @@ export function Navbar() {
         {open ? (
           <div className="mobile-nav-panel" role="dialog" aria-label="Mobile Navigation Drawer">
             <div className="mobile-quick">
-              <Link href="/tools/compress" onClick={() => setOpen(false)}>
+              <Link href="/compress" onClick={() => setOpen(false)}>
                 Compress
               </Link>
-              <Link href="/tools/resize" onClick={() => setOpen(false)}>
+              <Link href="/resize" onClick={() => setOpen(false)}>
                 Resize
               </Link>
-              <Link href="/tools/passport-photo-maker" onClick={() => setOpen(false)}>
+              <Link href="/passport-photo-maker" onClick={() => setOpen(false)}>
                 Passport
               </Link>
-              <Link href="/tools/signature-maker" onClick={() => setOpen(false)}>
+              <Link href="/signature-maker" onClick={() => setOpen(false)}>
                 Signature
               </Link>
             </div>
@@ -155,19 +155,19 @@ export function Footer() {
         </div>
         <div>
           <b>Popular tools</b>
-          <Link href="/tools/resize">Resize Image</Link>
-          <Link href="/tools/compress">Compress Image</Link>
-          <Link href="/tools/passport-photo-maker">Passport Photo Maker</Link>
-          <Link href="/tools/signature-maker">Signature Maker</Link>
-          <Link href="/tools/crop">Crop Image</Link>
+          <Link href="/resize">Resize Image</Link>
+          <Link href="/compress">Compress Image</Link>
+          <Link href="/passport-photo-maker">Passport Photo Maker</Link>
+          <Link href="/signature-maker">Signature Maker</Link>
+          <Link href="/crop">Crop Image</Link>
         </div>
         <div>
           <b>Photo & size</b>
-          <Link href="/tools/resize-cm">Resize in CM</Link>
-          <Link href="/tools/resize-mm">Resize in MM</Link>
-          <Link href="/tools/resize-inches">Resize in Inches</Link>
-          <Link href="/tools/photo-size-converter">Photo Size Converter</Link>
-          <Link href="/tools/dpi-changer">DPI Changer</Link>
+          <Link href="/resize-cm">Resize in CM</Link>
+          <Link href="/resize-mm">Resize in MM</Link>
+          <Link href="/resize-inches">Resize in Inches</Link>
+          <Link href="/photo-size-converter">Photo Size Converter</Link>
+          <Link href="/dpi-changer">DPI Changer</Link>
         </div>
         <div>
           <b>AJN Ecosystem</b>

@@ -6,7 +6,7 @@ import { ADSENSE_CLIENT } from '@/lib/ads';
 
 const SCRIPT_ID = 'ajn-buzz-adsense-script';
 export const ADS_READY_EVENT = 'ajn-buzz-adsense-ready';
-const AD_ELIGIBLE_PATHS = new Set(['/', ...IMAGE_TOOLS.map(tool => `/tools/${tool.id}`)]);
+const AD_ELIGIBLE_PATHS = new Set(['/', ...IMAGE_TOOLS.map(tool => `/${tool.id}`)]);
 export function isBuzzAdEligiblePath(pathname: string) { const normalized = pathname.length > 1 ? pathname.replace(/\/+$/, '') : pathname; return AD_ELIGIBLE_PATHS.has(normalized); }
 
 export function AdSenseScriptLoader() {
