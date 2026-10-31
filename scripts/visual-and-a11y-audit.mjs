@@ -139,7 +139,7 @@ async function run() {
       if (fs.existsSync(portraitPath)) {
         await page.goto(`${BASE_URL}/passport-photo-maker`, { waitUntil: 'networkidle' });
         await page.locator('input[type="file"]').first().setInputFiles(portraitPath);
-        await page.locator('.preview-stage img').first().waitFor({ state: 'visible', timeout: 15000 });
+        await page.locator('.preview-stage img, .canvas-stage-canvas').first().waitFor({ state: 'visible', timeout: 15000 });
         await page.locator('button.action-big').click();
         await page.locator('.result-ready').waitFor({ state: 'visible', timeout: 25000 });
         await page.locator('.result-ready').scrollIntoViewIfNeeded();

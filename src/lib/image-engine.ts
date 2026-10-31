@@ -1,9 +1,19 @@
 import type { ImageTool, PhysicalUnit } from './image-tools';
+import {
+  computeA4GridLayout,
+  drawTransformedImage,
+  isDefaultTransform,
+  type A4LayoutResult,
+  type BrushStroke,
+  type CropBox,
+  type StageTransform,
+} from './stage-math';
 
 export type OutputFormat = 'image/jpeg' | 'image/png' | 'image/webp';
 export type CompressionMode = 'auto' | 'target';
 
 export type ImageOptions = {
+  stageTransform?: StageTransform;
   width?: number;
   height?: number;
   unit?: PhysicalUnit;
@@ -29,6 +39,13 @@ export type ImageOptions = {
   color?: string;
   position?: 'center' | 'bottom-right' | 'bottom-left' | 'top-right' | 'top-left';
   amount?: number;
+  softness?: number;
+  recolorInk?: boolean;
+  inkColor?: string;
+  transparentBackground?: boolean;
+  autoTrim?: boolean;
+  useCustomSize?: boolean;
+  brushStrokes?: BrushStroke[];
   backgroundColor?: string;
   brightness?: number;
   contrast?: number;
@@ -41,6 +58,8 @@ export type ImageOptions = {
   a4MarginMm?: number;
   a4SpacingMm?: number;
   targetKb?: number;
+  signal?: AbortSignal;
+  onProgress?: (pct: number) => void;
 };
 
 export type ImageProcessResult = {
@@ -155,19 +174,17 @@ export function inspectJpegBinary(bytes: Uint8Array): {
     const segLen = ((bytes[offset + 2] ?? 0) << 8) | (bytes[offset + 3] ?? 0);
     if (segLen < 2 || offset + 2 + segLen > bytes.length) break;
 
-    // APP1 (Exif/XMP), APP2 (ICC/FlashPix), APP12, APP13 (IPTC), APP14, COM
     if ((marker >= 0xe1 && marker <= 0xef) || marker === 0xfe) {
       hasExifOrAppMeta = true;
     }
 
-    // Parse EXIF orientation in APP1 (0xFFE1)
     if (marker === 0xe1 && segLen >= 14) {
       const start = offset + 4;
       if (
-        bytes[start] === 0x45 && // 'E'
-        bytes[start + 1] === 0x78 && // 'x'
-        bytes[start + 2] === 0x69 && // 'i'
-        bytes[start + 3] === 0x66 && // 'f'
+        bytes[start] === 0x45 &&
+        bytes[start + 1] === 0x78 &&
+        bytes[start + 2] === 0x69 &&
+        bytes[start + 3] === 0x66 &&
         bytes[start + 4] === 0x00 &&
         bytes[start + 5] === 0x00
       ) {
@@ -210,7 +227,6 @@ export function inspectJpegBinary(bytes: Uint8Array): {
       }
     }
 
-    // SOF0 / SOF1 / SOF2 frame header dimensions
     if (
       (marker >= 0xc0 && marker <= 0xc3) ||
       (marker >= 0xc5 && marker <= 0xc7) ||
@@ -239,12 +255,9 @@ function orientCanvasIfNeeded(
 ): BitmapLike | null {
   if (orientation <= 1 || orientation > 8) return null;
   const swapsAxes = orientation >= 5 && orientation <= 8;
-  // If the browser's decoder already swapped dimensions for 5..8, it already applied EXIF orientation.
   if (swapsAxes && sofW > 0 && sofH > 0 && sofW !== sofH && rawW === sofH && rawH === sofW) {
     return null;
   }
-  // If browser did NOT swap axes for 5..8 (or if square / 2..4 where createImageBitmap didn't orient),
-  // check whether createImageBitmap with 'none' vs 'from-image' was used.
   if (!swapsAxes) return null;
 
   const targetW = rawH;
@@ -502,7 +515,7 @@ async function runWorkerTask<T>(
       if (data.ok) {
         resolve(data.result as T);
       } else {
-        resolve(null); // Fall back cleanly to main thread if worker couldn't decode (e.g. SVG)
+        resolve(null);
       }
     };
 
@@ -528,7 +541,6 @@ async function runWorkerTask<T>(
 export async function compressImage(file: File, options: CompressOptions): Promise<ImageProcessResult> {
   if (options.signal?.aborted) throw new Error('Processing cancelled.');
 
-  // Offload to OffscreenCanvas Web Worker when supported and file is not SVG
   if (!/\.svg$/i.test(file.name) && file.type !== 'image/svg+xml') {
     const workerRes = await runWorkerTask<ImageProcessResult>(
       'compress',
@@ -669,19 +681,128 @@ function parseHexRgb(hex: string): [number, number, number] {
   return [(num >> 16) & 255, (num >> 8) & 255, num & 255];
 }
 
+/**
+ * Measures background edge color variance around the upper/side perimeter of a photo.
+ * Used by Passport & ID Photo tools to warn the user when the source background is busy or uneven.
+ */
+export function measureEdgeVariance(
+  source: CanvasImageSource,
+  sourceWidth: number,
+  sourceHeight: number
+): { variance: number; highVariance: boolean } {
+  const sampleW = Math.min(240, Math.max(32, Math.round(sourceWidth)));
+  const sampleH = Math.min(240, Math.max(32, Math.round(sourceHeight)));
+  const canvas = makeCanvas(sampleW, sampleH);
+  try {
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return { variance: 0, highVariance: false };
+    ctx.drawImage(source, 0, 0, sampleW, sampleH);
+    const d = ctx.getImageData(0, 0, sampleW, sampleH).data;
+    const samples: Array<[number, number, number]> = [];
+    const pushSample = (x: number, y: number) => {
+      const idx = (clamp(Math.round(y), 0, sampleH - 1) * sampleW + clamp(Math.round(x), 0, sampleW - 1)) * 4;
+      if (d[idx + 3]! > 16) samples.push([d[idx]!, d[idx + 1]!, d[idx + 2]!]);
+    };
+    const steps = 20;
+    for (let i = 0; i < steps; i++) {
+      const t = i / (steps - 1);
+      pushSample(t * (sampleW - 1), 1);
+      pushSample(1, t * (sampleH * 0.65));
+      pushSample(sampleW - 2, t * (sampleH * 0.65));
+    }
+    if (samples.length === 0) return { variance: 0, highVariance: false };
+    const rs = samples.map(s => s[0]).sort((a, b) => a - b);
+    const gs = samples.map(s => s[1]).sort((a, b) => a - b);
+    const bs = samples.map(s => s[2]).sort((a, b) => a - b);
+    const mid = Math.floor(samples.length / 2);
+    const bgR = rs[mid]!;
+    const bgG = gs[mid]!;
+    const bgB = bs[mid]!;
+    let variance = 0;
+    for (const [r, g, b] of samples) {
+      variance += Math.hypot(r - bgR, g - bgG, b - bgB);
+    }
+    variance /= samples.length;
+    return {
+      variance: Math.round(variance * 10) / 10,
+      highVariance: variance > 38,
+    };
+  } finally {
+    releaseCanvas(canvas);
+  }
+}
+
+/**
+ * Detects the bounding box of signature ink strokes in source image coordinates.
+ * Used by the "Auto-Trim Ink" button in signature-upload-crop.
+ */
+export function detectSignatureInkBounds(
+  source: CanvasImageSource,
+  sourceWidth: number,
+  sourceHeight: number,
+  threshold = 42,
+  margin = 12
+): CropBox {
+  const safe = fitToSafeCanvas(sourceWidth, sourceHeight);
+  const canvas = makeCanvas(safe.width, safe.height);
+  try {
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return { x: 0, y: 0, width: sourceWidth, height: sourceHeight };
+    ctx.drawImage(source, 0, 0, safe.width, safe.height);
+    removeEdgeConnectedPaperBackground(ctx, safe.width, safe.height, threshold, undefined, 25, true);
+    const d = ctx.getImageData(0, 0, safe.width, safe.height).data;
+    let minX = safe.width;
+    let minY = safe.height;
+    let maxX = -1;
+    let maxY = -1;
+    for (let y = 0; y < safe.height; y++) {
+      for (let x = 0; x < safe.width; x++) {
+        const i = (y * safe.width + x) * 4;
+        const alpha = d[i + 3]!;
+        const lum = 0.299 * d[i]! + 0.587 * d[i + 1]! + 0.114 * d[i + 2]!;
+        if (alpha > 20 && lum < 245) {
+          if (x < minX) minX = x;
+          if (y < minY) minY = y;
+          if (x > maxX) maxX = x;
+          if (y > maxY) maxY = y;
+        }
+      }
+    }
+    if (maxX < minX || maxY < minY) {
+      return { x: 0, y: 0, width: sourceWidth, height: sourceHeight };
+    }
+    const scaleX = sourceWidth / safe.width;
+    const scaleY = sourceHeight / safe.height;
+    const pad = clamp(Math.round(margin), 0, 200);
+    const x = Math.max(0, Math.round(minX * scaleX) - pad);
+    const y = Math.max(0, Math.round(minY * scaleY) - pad);
+    const right = Math.min(sourceWidth, Math.round((maxX + 1) * scaleX) + pad);
+    const bottom = Math.min(sourceHeight, Math.round((maxY + 1) * scaleY) + pad);
+    return {
+      x,
+      y,
+      width: Math.max(16, right - x),
+      height: Math.max(16, bottom - y),
+    };
+  } finally {
+    releaseCanvas(canvas);
+  }
+}
+
 function removeEdgeConnectedPaperBackground(
   ctx: CanvasRenderingContext2D,
   width: number,
   height: number,
   tolerance = 38,
-  replacementHex?: string
-): { busyBackground: boolean } {
+  replacementHex?: string,
+  softness = 28,
+  removeInteriorPaper = false
+): { busyBackground: boolean; variance: number } {
   const image = ctx.getImageData(0, 0, width, height);
   const d = image.data;
   const total = width * height;
-  if (total <= 0) return { busyBackground: false };
+  if (total <= 0) return { busyBackground: false, variance: 0 };
 
-  // Sample outer perimeter along top and upper 65% of left/right borders (avoiding bottom clothing)
   const samples: Array<[number, number, number]> = [];
   const pushSample = (x: number, y: number) => {
     const idx = (clamp(Math.round(y), 0, height - 1) * width + clamp(Math.round(x), 0, width - 1)) * 4;
@@ -726,31 +847,41 @@ function removeEdgeConnectedPaperBackground(
     return dist <= maxDist;
   };
 
-  const enqueue = (x: number, y: number) => {
-    if (x < 0 || x >= width || y < 0 || y >= height) return;
-    const p = y * width + x;
-    if (visited[p] || !matchesBg(p)) return;
-    visited[p] = 1;
-    queue[tail++] = p;
-  };
+  if (removeInteriorPaper) {
+    // For signatures, also clear paper inside closed letter loops (e.g. O, A, B, e)
+    for (let p = 0; p < total; p++) {
+      if (matchesBg(p)) {
+        visited[p] = 1;
+        tail++;
+      }
+    }
+  } else {
+    const enqueue = (x: number, y: number) => {
+      if (x < 0 || x >= width || y < 0 || y >= height) return;
+      const p = y * width + x;
+      if (visited[p] || !matchesBg(p)) return;
+      visited[p] = 1;
+      queue[tail++] = p;
+    };
 
-  for (let x = 0; x < width; x++) {
-    enqueue(x, 0);
-    enqueue(x, height - 1);
-  }
-  for (let y = 1; y < height - 1; y++) {
-    enqueue(0, y);
-    enqueue(width - 1, y);
-  }
+    for (let x = 0; x < width; x++) {
+      enqueue(x, 0);
+      enqueue(x, height - 1);
+    }
+    for (let y = 1; y < height - 1; y++) {
+      enqueue(0, y);
+      enqueue(width - 1, y);
+    }
 
-  while (head < tail) {
-    const p = queue[head++]!;
-    const x = p % width;
-    const y = (p - x) / width;
-    if (x > 0) enqueue(x - 1, y);
-    if (x + 1 < width) enqueue(x + 1, y);
-    if (y > 0) enqueue(x, y - 1);
-    if (y + 1 < height) enqueue(x, y + 1);
+    while (head < tail) {
+      const p = queue[head++]!;
+      const x = p % width;
+      const y = (p - x) / width;
+      if (x > 0) enqueue(x - 1, y);
+      if (x + 1 < width) enqueue(x + 1, y);
+      if (y > 0) enqueue(x, y - 1);
+      if (y + 1 < height) enqueue(x, y + 1);
+    }
   }
 
   const fillRgb = replacementHex ? parseHexRgb(replacementHex) : null;
@@ -767,24 +898,27 @@ function removeEdgeConnectedPaperBackground(
     }
   }
 
-  // Soft 1-pixel boundary feathering for smooth transitions
-  const softDist = maxDist * 1.28;
-  for (let y = 1; y < height - 1; y++) {
-    for (let x = 1; x < width - 1; x++) {
-      const p = y * width + x;
-      if (visited[p]) continue;
-      const touchesBg = visited[p - 1] || visited[p + 1] || visited[p - width] || visited[p + width];
-      if (!touchesBg) continue;
-      const i = p * 4;
-      const dist = Math.hypot(d[i]! - bgR, d[i + 1]! - bgG, d[i + 2]! - bgB);
-      if (dist < softDist) {
-        const ratio = clamp((dist - maxDist * 0.6) / Math.max(1, softDist - maxDist * 0.6), 0.25, 0.9);
-        if (fillRgb) {
-          d[i] = Math.round(d[i]! * ratio + fillRgb[0] * (1 - ratio));
-          d[i + 1] = Math.round(d[i + 1]! * ratio + fillRgb[1] * (1 - ratio));
-          d[i + 2] = Math.round(d[i + 2]! * ratio + fillRgb[2] * (1 - ratio));
-        } else {
-          d[i + 3] = Math.round(d[i + 3]! * ratio);
+  // Boundary feathering controlled by softness (0..100)
+  const softVal = clamp(softness, 0, 100);
+  if (softVal > 0) {
+    const softDist = maxDist * (1 + softVal / 110);
+    for (let y = 1; y < height - 1; y++) {
+      for (let x = 1; x < width - 1; x++) {
+        const p = y * width + x;
+        if (visited[p]) continue;
+        const touchesBg = visited[p - 1] || visited[p + 1] || visited[p - width] || visited[p + width];
+        if (!touchesBg) continue;
+        const i = p * 4;
+        const dist = Math.hypot(d[i]! - bgR, d[i + 1]! - bgG, d[i + 2]! - bgB);
+        if (dist < softDist) {
+          const ratio = clamp((dist - maxDist * 0.55) / Math.max(1, softDist - maxDist * 0.55), 0.12, 0.95);
+          if (fillRgb) {
+            d[i] = Math.round(d[i]! * ratio + fillRgb[0] * (1 - ratio));
+            d[i + 1] = Math.round(d[i + 1]! * ratio + fillRgb[1] * (1 - ratio));
+            d[i + 2] = Math.round(d[i + 2]! * ratio + fillRgb[2] * (1 - ratio));
+          } else {
+            d[i + 3] = Math.round(d[i + 3]! * ratio);
+          }
         }
       }
     }
@@ -792,7 +926,80 @@ function removeEdgeConnectedPaperBackground(
 
   ctx.putImageData(image, 0, 0);
   const replacedRatio = tail / Math.max(1, total);
-  return { busyBackground: variance > 42 || replacedRatio < 0.04 };
+  return { busyBackground: variance > 42 || replacedRatio < 0.04, variance };
+}
+
+function applySignatureInkRecolor(ctx: CanvasRenderingContext2D, width: number, height: number, inkHex: string) {
+  const [inkR, inkG, inkB] = parseHexRgb(inkHex);
+  const img = ctx.getImageData(0, 0, width, height);
+  const d = img.data;
+  for (let i = 0; i < d.length; i += 4) {
+    const a = d[i + 3]!;
+    if (a > 0) {
+      d[i] = inkR;
+      d[i + 1] = inkG;
+      d[i + 2] = inkB;
+    }
+  }
+  ctx.putImageData(img, 0, 0);
+}
+
+function applyBrushStrokesToCanvas(
+  ctx: CanvasRenderingContext2D,
+  originalSource: CanvasImageSource,
+  width: number,
+  height: number,
+  strokes: BrushStroke[],
+  recolorHex?: string
+) {
+  if (!strokes || strokes.length === 0) return;
+
+  // Prepare a clean copy of original source for 'restore' strokes
+  const restoreCanvas = makeCanvas(width, height);
+  try {
+    const rCtx = restoreCanvas.getContext('2d')!;
+    rCtx.drawImage(originalSource, 0, 0, width, height);
+    if (recolorHex) {
+      applySignatureInkRecolor(rCtx, width, height, recolorHex);
+    }
+
+    for (const stroke of strokes) {
+      if (!stroke.points || stroke.points.length === 0) continue;
+      ctx.save();
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
+      ctx.lineWidth = clamp(stroke.size, 2, 160);
+
+      if (stroke.mode === 'erase') {
+        ctx.globalCompositeOperation = 'destination-out';
+        ctx.strokeStyle = 'rgba(0,0,0,1)';
+        ctx.fillStyle = 'rgba(0,0,0,1)';
+      } else {
+        // Restore ink along brush path
+        ctx.globalCompositeOperation = 'source-over';
+        const color = recolorHex || '#0f172a';
+        ctx.strokeStyle = color;
+        ctx.fillStyle = color;
+      }
+
+      if (stroke.points.length === 1) {
+        const pt = stroke.points[0]!;
+        ctx.beginPath();
+        ctx.arc(pt.x, pt.y, stroke.size / 2, 0, Math.PI * 2);
+        ctx.fill();
+      } else {
+        ctx.beginPath();
+        ctx.moveTo(stroke.points[0]!.x, stroke.points[0]!.y);
+        for (let i = 1; i < stroke.points.length; i++) {
+          ctx.lineTo(stroke.points[i]!.x, stroke.points[i]!.y);
+        }
+        ctx.stroke();
+      }
+      ctx.restore();
+    }
+  } finally {
+    releaseCanvas(restoreCanvas);
+  }
 }
 
 function trimSignatureCanvas(canvas: HTMLCanvasElement, margin = 12): HTMLCanvasElement {
@@ -829,7 +1036,11 @@ function trimSignatureCanvas(canvas: HTMLCanvasElement, margin = 12): HTMLCanvas
   return out;
 }
 
-function drawCoverCrop(
+/**
+ * Draws the source image onto the target canvas with cover scaling, supporting zoom below 1
+ * (down to 0.25x, padded with backgroundColor), free rotation (-180..180 deg), and horizontal flip.
+ */
+export function drawCoverCrop(
   ctx: CanvasRenderingContext2D,
   source: CanvasImageSource,
   sourceWidth: number,
@@ -838,88 +1049,102 @@ function drawCoverCrop(
   targetHeight: number,
   anchorX = 0.5,
   anchorY = 0.45,
-  zoom = 1
+  zoom = 1,
+  rotation = 0,
+  backgroundColor = '#ffffff',
+  flipX = false
 ) {
-  const targetRatio = targetWidth / targetHeight;
-  const sourceRatio = sourceWidth / sourceHeight;
-  let cropW = sourceWidth;
-  let cropH = sourceHeight;
-  if (sourceRatio > targetRatio) cropW = Math.round(sourceHeight * targetRatio);
-  else cropH = Math.round(sourceWidth / targetRatio);
-  const safeZoom = clamp(zoom || 1, 1, 3);
-  cropW = Math.max(1, Math.round(cropW / safeZoom));
-  cropH = Math.max(1, Math.round(cropH / safeZoom));
-  const sx = Math.round((sourceWidth - cropW) * clamp(anchorX, 0, 1));
-  const sy = Math.round((sourceHeight - cropH) * clamp(anchorY, 0, 1));
-  ctx.drawImage(source, sx, sy, cropW, cropH, 0, 0, targetWidth, targetHeight);
+  const safeZoom = clamp(zoom || 1, 0.25, 5);
+  if (safeZoom < 1 || rotation !== 0) {
+    ctx.save();
+    ctx.fillStyle = backgroundColor || '#ffffff';
+    ctx.fillRect(0, 0, targetWidth, targetHeight);
+    ctx.restore();
+  }
+
+  const baseScale = Math.max(targetWidth / Math.max(1, sourceWidth), targetHeight / Math.max(1, sourceHeight));
+  const coveredW = sourceWidth * baseScale * safeZoom;
+  const coveredH = sourceHeight * baseScale * safeZoom;
+  const slackX = Math.max(0, coveredW - targetWidth);
+  const slackY = Math.max(0, coveredH - targetHeight);
+
+  const normX = ((0.5 - clamp(anchorX, 0, 1)) * slackX) / Math.max(1, targetWidth);
+  const normY = ((0.5 - clamp(anchorY, 0, 1)) * slackY) / Math.max(1, targetHeight);
+
+  drawTransformedImage(
+    ctx,
+    source,
+    { width: sourceWidth, height: sourceHeight },
+    { width: targetWidth, height: targetHeight },
+    {
+      x: normX,
+      y: normY,
+      scale: safeZoom,
+      rotation,
+      flipX,
+    },
+    'cover'
+  );
 }
 
-function buildA4PassportSheet(
+/**
+ * Builds an A4 (210 × 297 mm) print sheet from a processed single photo tile.
+ * Cut guides are drawn strictly OUTSIDE the photo edge so photo pixels are never painted over.
+ */
+export function buildA4PassportSheet(
   tile: HTMLCanvasElement,
   dpi: number,
   requestedCount: number,
   marginMm: number,
   spacingMm: number
-): { sheet: HTMLCanvasElement; placed: number; cols: number; rows: number; sheetDpi: number } {
-  // Cap A4 sheet DPI so 210 × 297 mm always stays within the 16.77 MP iOS Safari canvas limit (max ~410 DPI)
-  const maxSafeA4Dpi = Math.floor(Math.sqrt(MAX_CANVAS_PIXELS / ((210 / 25.4) * (297 / 25.4))));
-  const sheetDpi = clamp(dpi, 72, Math.min(600, maxSafeA4Dpi));
-  const dpiScale = sheetDpi / Math.max(1, dpi);
+): { sheet: HTMLCanvasElement; placed: number; cols: number; rows: number; sheetDpi: number; layout: A4LayoutResult } {
+  const layout = computeA4GridLayout(
+    tile.width,
+    tile.height,
+    dpi,
+    requestedCount,
+    marginMm,
+    spacingMm,
+    MAX_CANVAS_PIXELS
+  );
 
-  const sheetW = pixelsFromPhysical(210, 'mm', sheetDpi);
-  const sheetH = pixelsFromPhysical(297, 'mm', sheetDpi);
-  const marginPx = Math.max(0, Math.round((clamp(marginMm, 0, 40) / 25.4) * sheetDpi));
-  const gapPx = Math.max(0, Math.round((clamp(spacingMm, 0, 30) / 25.4) * sheetDpi));
-
-  const tileW = Math.max(1, Math.round(tile.width * dpiScale));
-  const tileH = Math.max(1, Math.round(tile.height * dpiScale));
-  const usableW = Math.max(1, sheetW - marginPx * 2);
-  const usableH = Math.max(1, sheetH - marginPx * 2);
-
-  if (tileW > usableW || tileH > usableH) {
+  if (layout.placed < 1 || !layout.withinBounds) {
     throw new Error(
       'Single photo dimensions exceed the printable A4 area. Reduce the photo dimensions or sheet margin.'
     );
   }
 
-  const cols = Math.floor((usableW + gapPx) / (tileW + gapPx));
-  const rows = Math.floor((usableH + gapPx) / (tileH + gapPx));
-  if (cols < 1 || rows < 1) {
-    throw new Error('Photo dimensions are too large to fit on an A4 sheet with the current margin.');
-  }
-
-  const maxFit = cols * rows;
-  const count = requestedCount <= 0 ? maxFit : Math.min(requestedCount, maxFit);
-
-  const sheet = makeCanvas(sheetW, sheetH);
+  const sheet = makeCanvas(layout.sheetW, layout.sheetH);
   const ctx = sheet.getContext('2d')!;
   ctx.fillStyle = '#ffffff';
-  ctx.fillRect(0, 0, sheetW, sheetH);
+  ctx.fillRect(0, 0, layout.sheetW, layout.sheetH);
   ctx.imageSmoothingEnabled = true;
   ctx.imageSmoothingQuality = 'high';
 
-  const usedCols = Math.min(cols, count);
-  const usedRows = Math.ceil(count / usedCols);
-  const totalGridW = usedCols * tileW + Math.max(0, usedCols - 1) * gapPx;
-  const startX = Math.max(marginPx, Math.round((sheetW - totalGridW) / 2));
-  const startY = marginPx;
-
-  let placed = 0;
-  const strokeWidth = Math.max(1, Math.round(sheetDpi / 300));
+  const strokeWidth = Math.max(1, Math.round(layout.sheetDpi / 300));
+  const halfStroke = strokeWidth / 2;
   ctx.strokeStyle = '#cbd5e1';
   ctx.lineWidth = strokeWidth;
 
-  for (let r = 0; r < usedRows && placed < count; r++) {
-    for (let c = 0; c < usedCols && placed < count; c++) {
-      const x = startX + c * (tileW + gapPx);
-      const y = startY + r * (tileH + gapPx);
-      ctx.drawImage(tile, 0, 0, tile.width, tile.height, x, y, tileW, tileH);
-      ctx.strokeRect(x + 0.5, y + 0.5, tileW - 1, tileH - 1);
-      placed++;
-    }
+  for (const rect of layout.tiles) {
+    // Draw cut guides OUTSIDE the photo edge before drawing the photo tile
+    ctx.strokeRect(
+      rect.x - halfStroke,
+      rect.y - halfStroke,
+      rect.width + strokeWidth,
+      rect.height + strokeWidth
+    );
+    ctx.drawImage(tile, 0, 0, tile.width, tile.height, rect.x, rect.y, rect.width, rect.height);
   }
 
-  return { sheet, placed, cols: usedCols, rows: usedRows, sheetDpi };
+  return {
+    sheet,
+    placed: layout.placed,
+    cols: layout.cols,
+    rows: layout.rows,
+    sheetDpi: layout.sheetDpi,
+    layout,
+  };
 }
 
 export async function processImage(
@@ -927,6 +1152,80 @@ export async function processImage(
   tool: ImageTool,
   options: ImageOptions
 ): Promise<ImageProcessResult> {
+  if (options.signal?.aborted) throw new Error('Processing cancelled.');
+
+  // Offload heavy photo-preset export (background replacement, A4 sheet build, or target-KB search) to Web Worker
+  if (
+    tool.workflow === 'photo-preset' &&
+    !/\.svg$/i.test(file.name) &&
+    file.type !== 'image/svg+xml'
+  ) {
+    const preset = tool.preset || { width: 35, height: 45, unit: 'mm' as PhysicalUnit, dpi: 300 };
+    const workerRes = await runWorkerTask<{
+      blob: Blob;
+      width: number;
+      height: number;
+      type: OutputFormat;
+      dpi: number;
+      note?: string;
+      targetBytes?: number;
+      targetReached?: boolean;
+      busyBgWarning?: string;
+      pWidth?: number;
+      pHeight?: number;
+      unit?: PhysicalUnit;
+    }>(
+      'photo-preset',
+      {
+        file,
+        preset,
+        options: {
+          ...options,
+          signal: undefined,
+          onProgress: undefined,
+        },
+      },
+      options.signal,
+      options.onProgress
+    );
+
+    if (workerRes && workerRes.blob) {
+      const dpi = workerRes.dpi || clamp(Math.round(options.dpi || preset.dpi || 300), 36, 1200);
+      const format = workerRes.type || options.format || 'image/jpeg';
+      const withDpi =
+        format === 'image/jpeg' || format === 'image/png'
+          ? await setBlobDpi(workerRes.blob, dpi)
+          : workerRes.blob;
+
+      if (workerRes.targetBytes) {
+        const strictReached = withDpi.size <= workerRes.targetBytes;
+        const targetKb = Math.round(workerRes.targetBytes / 1024);
+        const warn = workerRes.busyBgWarning || '';
+        return {
+          blob: withDpi,
+          width: workerRes.width,
+          height: workerRes.height,
+          type: format,
+          dpi,
+          targetBytes: workerRes.targetBytes,
+          targetReached: strictReached,
+          note: strictReached
+            ? `${workerRes.pWidth} × ${workerRes.pHeight} ${workerRes.unit} (${workerRes.width} × ${workerRes.height} px at ${dpi} DPI) · Target ≤ ${targetKb} KB reached (${Math.max(1, Math.round(withDpi.size / 1024))} KB).${warn}`
+            : `${workerRes.pWidth} × ${workerRes.pHeight} ${workerRes.unit} (${workerRes.width} × ${workerRes.height} px at ${dpi} DPI) · Closest size at full resolution is ${Math.max(1, Math.round(withDpi.size / 1024))} KB (target ${targetKb} KB).${warn}`,
+        };
+      }
+
+      return {
+        blob: withDpi,
+        width: workerRes.width,
+        height: workerRes.height,
+        type: format,
+        dpi,
+        note: workerRes.note,
+      };
+    }
+  }
+
   const source = await decode(file);
   try {
     const format: OutputFormat =
@@ -1003,7 +1302,18 @@ export async function processImage(
           ctx.fillStyle = '#ffffff';
           ctx.fillRect(0, 0, safe.width, safe.height);
         }
-        ctx.drawImage(source.source, 0, 0, safe.width, safe.height);
+        if (options.stageTransform && !isDefaultTransform(options.stageTransform)) {
+          drawTransformedImage(
+            ctx,
+            source.source,
+            { width: source.width, height: source.height },
+            { width: safe.width, height: safe.height },
+            options.stageTransform,
+            'fit'
+          );
+        } else {
+          ctx.drawImage(source.source, 0, 0, safe.width, safe.height);
+        }
         const raw = await canvasBlob(canvas, format, quality);
         const withDpi = format === 'image/jpeg' || format === 'image/png' ? await setBlobDpi(raw, dpi) : raw;
         return {
@@ -1035,27 +1345,10 @@ export async function processImage(
       let workSource: CanvasImageSource = source.source;
       let workW = source.width;
       let workH = source.height;
-      let rotatedCanvas: HTMLCanvasElement | null = null;
       let bgCanvas: HTMLCanvasElement | null = null;
       let canvas: HTMLCanvasElement | null = null;
 
       try {
-        const angle = ((options.angle ?? 0) % 360 + 360) % 360;
-        if (angle === 90 || angle === 180 || angle === 270) {
-          const rotSafe = fitToSafeCanvas(
-            angle === 90 || angle === 270 ? source.height : source.width,
-            angle === 90 || angle === 270 ? source.width : source.height
-          );
-          rotatedCanvas = makeCanvas(rotSafe.width, rotSafe.height);
-          const rCtx = rotatedCanvas.getContext('2d')!;
-          rCtx.translate(rotatedCanvas.width / 2, rotatedCanvas.height / 2);
-          rCtx.rotate((angle * Math.PI) / 180);
-          rCtx.drawImage(source.source, -source.width / 2, -source.height / 2);
-          workSource = rotatedCanvas;
-          workW = rotatedCanvas.width;
-          workH = rotatedCanvas.height;
-        }
-
         let busyBgWarning = '';
         if (options.replaceBackground) {
           const bgSafe = fitToSafeCanvas(workW, workH);
@@ -1067,10 +1360,12 @@ export async function processImage(
             bgSafe.width,
             bgSafe.height,
             options.amount ?? 38,
-            options.backgroundColor || '#ffffff'
+            options.backgroundColor || '#ffffff',
+            options.softness ?? 28
           );
           if (busyBackground) {
-            busyBgWarning = ' Note: Original background looks busy or uneven; background fill works best on plain, evenly lit walls.';
+            busyBgWarning =
+              ' Note: Original background looks busy or uneven; background fill works best on plain, evenly lit walls.';
           }
           workSource = bgCanvas;
           workW = bgSafe.width;
@@ -1089,17 +1384,31 @@ export async function processImage(
         if (b !== 100 || c !== 100) {
           ctx.filter = `brightness(${b}%) contrast(${c}%)`;
         }
-        drawCoverCrop(
-          ctx,
-          workSource,
-          workW,
-          workH,
-          width,
-          height,
-          options.anchorX ?? 0.5,
-          options.anchorY ?? 0.42,
-          options.zoom ?? 1
-        );
+        if (options.stageTransform) {
+          drawTransformedImage(
+            ctx,
+            workSource,
+            { width: workW, height: workH },
+            { width, height },
+            options.stageTransform,
+            'cover'
+          );
+        } else {
+          drawCoverCrop(
+            ctx,
+            workSource,
+            workW,
+            workH,
+            width,
+            height,
+            options.anchorX ?? 0.5,
+            options.anchorY ?? 0.42,
+            options.zoom ?? 1,
+            options.angle ?? 0,
+            options.backgroundColor || '#ffffff',
+            options.flip === 'horizontal'
+          );
+        }
         ctx.filter = 'none';
 
         if (options.a4Sheet) {
@@ -1130,7 +1439,6 @@ export async function processImage(
         const targetKb = Number(options.targetKb || 0);
         if (targetKb > 0 && format !== 'image/png') {
           const targetBytes = Math.max(2048, Math.round(targetKb * 1024));
-          // Reserve 32 bytes for JFIF DPI header insertion so final file never exceeds targetBytes
           const searchBudget = Math.max(1024, targetBytes - 32);
           const candidate = await bestLossyAtSize(canvas, format, searchBudget);
           const withDpi = format === 'image/jpeg' ? await setBlobDpi(candidate.blob, dpi) : candidate.blob;
@@ -1160,26 +1468,65 @@ export async function processImage(
           note: `${pWidth} × ${pHeight} ${unit} (${width} × ${height} px at ${dpi} DPI).${busyBgWarning}`,
         };
       } finally {
-        releaseCanvas(rotatedCanvas);
         releaseCanvas(bgCanvas);
         releaseCanvas(canvas);
       }
     }
 
-    if (tool.workflow === 'crop') {
-      const x = clamp(Math.round(options.cropX ?? 0), 0, Math.max(0, source.width - 1));
-      const y = clamp(Math.round(options.cropY ?? 0), 0, Math.max(0, source.height - 1));
-      const width = clamp(Math.round(options.cropWidth || source.width - x), 1, source.width - x);
-      const height = clamp(Math.round(options.cropHeight || source.height - y), 1, source.height - y);
+    if (tool.workflow === 'crop' || tool.workflow === 'signature-trim') {
+      const hasExplicitCrop =
+        typeof options.cropWidth === 'number' &&
+        options.cropWidth > 0 &&
+        typeof options.cropHeight === 'number' &&
+        options.cropHeight > 0;
+
+      let x = clamp(Math.round(options.cropX ?? 0), 0, Math.max(0, source.width - 1));
+      let y = clamp(Math.round(options.cropY ?? 0), 0, Math.max(0, source.height - 1));
+      let width = clamp(Math.round(options.cropWidth || source.width - x), 1, source.width - x);
+      let height = clamp(Math.round(options.cropHeight || source.height - y), 1, source.height - y);
+
+      if (tool.workflow === 'signature-trim' && !hasExplicitCrop) {
+        const autoBox = detectSignatureInkBounds(
+          source.source,
+          source.width,
+          source.height,
+          options.amount ?? 42,
+          options.trimMargin ?? 12
+        );
+        x = autoBox.x;
+        y = autoBox.y;
+        width = autoBox.width;
+        height = autoBox.height;
+      }
+
       const safe = fitToSafeCanvas(width, height);
-      const canvas = makeCanvas(safe.width, safe.height);
+      let canvas = makeCanvas(safe.width, safe.height);
       try {
-        canvas.getContext('2d')!.drawImage(source.source, x, y, width, height, 0, 0, safe.width, safe.height);
+        const ctx = canvas.getContext('2d')!;
+        ctx.drawImage(source.source, x, y, width, height, 0, 0, safe.width, safe.height);
+        if (tool.workflow === 'signature-trim') {
+          removeEdgeConnectedPaperBackground(
+            ctx,
+             canvas.width,
+            canvas.height,
+            options.amount ?? 42,
+            undefined,
+            options.softness ?? 28,
+            true
+          );
+          if (options.autoTrim) {
+            canvas = trimSignatureCanvas(canvas, options.trimMargin ?? 12);
+          }
+        }
         return {
           blob: await canvasBlob(canvas, format, quality),
-          width: safe.width,
-          height: safe.height,
+          width: canvas.width,
+          height: canvas.height,
           type: format,
+          note:
+            tool.workflow === 'signature-trim'
+              ? `Cropped signature: ${canvas.width} × ${canvas.height} px transparent PNG.`
+              : undefined,
         };
       } finally {
         releaseCanvas(canvas);
@@ -1220,7 +1567,7 @@ export async function processImage(
     }
 
     if (tool.workflow === 'rotate') {
-      const angle = ((options.angle ?? 90) % 360 + 360) % 360;
+      const angle = (((options.angle ?? 90) % 360) + 360) % 360;
       const swap = angle === 90 || angle === 270;
       const safe = fitToSafeCanvas(swap ? source.height : source.width, swap ? source.width : source.height);
       const canvas = makeCanvas(safe.width, safe.height);
@@ -1327,13 +1674,21 @@ export async function processImage(
       }
 
       const workflowKey = String(tool.workflow);
-      if (
-        workflowKey === 'remove-bg' ||
+      const isSigWorkflow =
         tool.workflow === 'signature-remove-bg' ||
         tool.workflow === 'signature-maker' ||
-        tool.workflow === 'signature-png'
-      ) {
-        removeEdgeConnectedPaperBackground(ctx, canvas.width, canvas.height, options.amount ?? 42);
+        tool.workflow === 'signature-png';
+
+      if (workflowKey === 'remove-bg' || isSigWorkflow) {
+        removeEdgeConnectedPaperBackground(
+          ctx,
+          canvas.width,
+          canvas.height,
+          options.amount ?? 42,
+          undefined,
+          options.softness ?? 28,
+          isSigWorkflow
+        );
       }
 
       if (workflowKey === 'change-bg') {
@@ -1342,19 +1697,105 @@ export async function processImage(
           canvas.width,
           canvas.height,
           options.amount ?? 42,
-          options.backgroundColor || '#ffffff'
+          options.backgroundColor || '#ffffff',
+          options.softness ?? 28,
+          false
         );
       }
 
-      if (
-        tool.workflow === 'signature-maker' ||
-        tool.workflow === 'signature-trim' ||
-        tool.workflow === 'signature-remove-bg'
-      ) {
+      // Recolor ink if requested in signature tools
+      if (isSigWorkflow && options.recolorInk && options.inkColor) {
+        applySignatureInkRecolor(ctx, canvas.width, canvas.height, options.inkColor);
+      }
+
+      // Replay Eraser / Restore brush strokes in source coordinates
+      if (isSigWorkflow && options.brushStrokes && options.brushStrokes.length > 0) {
+        applyBrushStrokesToCanvas(
+          ctx,
+          source.source,
+          canvas.width,
+          canvas.height,
+          options.brushStrokes,
+          options.recolorInk ? options.inkColor : undefined
+        );
+      }
+
+      // Apply interactive stageTransform (drag / scale / rotate / flipX) if user modified it on CanvasStage
+      const hasTransformOffset =
+        options.stageTransform &&
+        (Math.abs(options.stageTransform.x) > 0.001 || Math.abs(options.stageTransform.y) > 0.001);
+
+      if (isSigWorkflow && options.stageTransform && !isDefaultTransform(options.stageTransform)) {
+        const transformed = makeCanvas(canvas.width, canvas.height);
+        const tCtx = transformed.getContext('2d')!;
+        tCtx.imageSmoothingEnabled = true;
+        tCtx.imageSmoothingQuality = 'high';
+        drawTransformedImage(
+          tCtx,
+          canvas,
+          { width: canvas.width, height: canvas.height },
+          { width: transformed.width, height: transformed.height },
+          options.stageTransform,
+          'fit'
+        );
+        releaseCanvas(canvas);
+        canvas = transformed;
+      }
+
+      // Auto-trim whitespace around signature ink (unless user explicitly dragged the signature on the page preview)
+      const shouldAutoTrim =
+        (tool.workflow === 'signature-maker' || tool.workflow === 'signature-remove-bg') &&
+        options.autoTrim !== false &&
+        !hasTransformOffset;
+
+      if (shouldAutoTrim && canvas) {
         canvas = trimSignatureCanvas(canvas, options.trimMargin ?? 12);
       }
 
-      const blob = await canvasBlob(canvas, format, quality);
+      // For signature-maker: apply custom output size (px/cm/mm/in + DPI) if requested
+      if (tool.workflow === 'signature-maker' && options.useCustomSize && canvas) {
+        const unit: PhysicalUnit = options.unit || 'px';
+        const targetW =
+          unit === 'px'
+            ? clamp(Math.round(options.width || 600), 16, 4096)
+            : pixelsFromPhysical(options.physicalWidth || 5, unit, dpi);
+        const targetH =
+          unit === 'px'
+            ? clamp(Math.round(options.height || 200), 16, 4096)
+            : pixelsFromPhysical(options.physicalHeight || 2, unit, dpi);
+        const safeOut = fitToSafeCanvas(targetW, targetH);
+        const sized = makeCanvas(safeOut.width, safeOut.height);
+        const sCtx = sized.getContext('2d')!;
+        sCtx.imageSmoothingEnabled = true;
+        sCtx.imageSmoothingQuality = 'high';
+        drawTransformedImage(
+          sCtx,
+          canvas,
+          { width: canvas.width, height: canvas.height },
+          { width: sized.width, height: sized.height },
+          { x: 0, y: 0, scale: 1, rotation: 0, flipX: false },
+          'fit'
+        );
+        releaseCanvas(canvas);
+        canvas = sized;
+      }
+
+      // Optional white background fill for signature-maker
+      if (tool.workflow === 'signature-maker' && options.transparentBackground === false && canvas) {
+        const whiteCanvas = makeCanvas(canvas.width, canvas.height);
+        const wCtx = whiteCanvas.getContext('2d')!;
+        wCtx.fillStyle = '#ffffff';
+        wCtx.fillRect(0, 0, whiteCanvas.width, whiteCanvas.height);
+        wCtx.drawImage(canvas, 0, 0);
+        releaseCanvas(canvas);
+        canvas = whiteCanvas;
+      }
+
+      const rawBlob = await canvasBlob(canvas!, format, quality);
+      const blob =
+        isSigWorkflow && (format === 'image/png' || format === 'image/jpeg')
+          ? await setBlobDpi(rawBlob, dpi)
+          : rawBlob;
 
       if (tool.workflow === 'remove-metadata') {
         let verifiedClean = true;
@@ -1365,8 +1806,8 @@ export async function processImage(
         }
         return {
           blob,
-          width: canvas.width,
-          height: canvas.height,
+          width: canvas!.width,
+          height: canvas!.height,
           type: format,
           note: verifiedClean
             ? 'EXIF, camera, and GPS metadata stripped and binary-verified clean.'
@@ -1376,12 +1817,17 @@ export async function processImage(
 
       return {
         blob,
-        width: canvas.width,
-        height: canvas.height,
+        width: canvas!.width,
+        height: canvas!.height,
         type: format,
+        dpi: isSigWorkflow ? dpi : undefined,
         note:
           tool.workflow === 'dimension-check' || tool.workflow === 'quality-check'
-            ? `${canvas.width} × ${canvas.height} px · ${Math.max(1, Math.round(blob.size / 1024))} KB`
+            ? `${canvas!.width} × ${canvas!.height} px · ${Math.max(1, Math.round(blob.size / 1024))} KB`
+            : isSigWorkflow
+            ? `${canvas!.width} × ${canvas!.height} px (${dpi} DPI) · ${
+                options.transparentBackground === false ? 'White background' : 'Transparent PNG'
+              }`
             : undefined,
       };
     } finally {

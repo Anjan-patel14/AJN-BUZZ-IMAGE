@@ -5,7 +5,7 @@
   "scripts": {
     "dev": "next dev -p 3000 -H 0.0.0.0",
     "build": "NODE_ENV=production NODE_OPTIONS='--import ./scripts/eslint-loader.mjs' next build",
-    "start": "NODE_ENV=production next start -p 3000 -H 0.0.0.0",
+    "start": "next start -p 3000 -H 0.0.0.0",
     "lint": "node --import ./scripts/eslint-loader.mjs ./node_modules/eslint/bin/eslint.js src",
     "typecheck": "tsc --noEmit",
     "verify": "node scripts/verify.mjs",

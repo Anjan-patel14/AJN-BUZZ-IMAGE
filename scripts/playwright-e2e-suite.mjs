@@ -309,13 +309,13 @@ async function runSuite() {
       await page.mouse.move(box.x + 220, box.y + 80, { steps: 6 });
       await page.mouse.move(box.x + 360, box.y + 150, { steps: 6 });
       await page.mouse.up();
-      await page.locator('button:has-text("Use drawing")').click();
+      await page.waitForTimeout(100);
     } else {
       const filePath = assets[item.asset];
       await page.locator('input[type="file"]').setInputFiles(filePath);
     }
 
-    await page.locator('.preview-stage img').first().waitFor({ state: 'visible', timeout: 15000 });
+    await page.locator('.preview-stage img, .canvas-stage-canvas').first().waitFor({ state: 'visible', timeout: 15000 });
 
     if (item.targetKb) {
       await page.locator(`#target-size-${item.id}`).fill(String(item.targetKb));
@@ -470,8 +470,8 @@ async function runSuite() {
 
   // 8. Busy background portrait warning on Passport Photo Maker
   await page.goto(`${BASE_URL}/passport-photo-maker`, { waitUntil: 'networkidle' });
-  await page.locator('input[type="file"]').setInputFiles(assets.portraitBusyPath);
-  await page.locator('.preview-stage img').first().waitFor({ state: 'visible', timeout: 10000 });
+  await page.locator('input[type="file"]').first().setInputFiles(assets.portraitBusyPath);
+  await page.locator('.preview-stage img, .canvas-stage-canvas').first().waitFor({ state: 'visible', timeout: 10000 });
   const bgCheck = page.locator('label.check:has-text("Replace plain edge-connected background") input[type="checkbox"]');
   await bgCheck.check();
   await page.locator('button.action-big').click();
@@ -482,8 +482,8 @@ async function runSuite() {
   // 9. 20-file batch ZIP test without freezing or crashing
   await page.goto(`${BASE_URL}/convert-to-jpg`, { waitUntil: 'networkidle' });
   const batchFiles = Array.from({ length: 20 }, () => assets.webpPath);
-  await page.locator('input[type="file"]').setInputFiles(batchFiles);
-  await page.locator('.preview-stage img').first().waitFor({ state: 'visible', timeout: 15000 });
+  await page.locator('input[type="file"]').first().setInputFiles(batchFiles);
+  await page.locator('.preview-stage img, .canvas-stage-canvas').first().waitFor({ state: 'visible', timeout: 15000 });
   await page.locator('button.action-big').click();
   await page.locator('.result-ready').waitFor({ state: 'visible', timeout: 45000 });
   const [zipDownload] = await Promise.all([

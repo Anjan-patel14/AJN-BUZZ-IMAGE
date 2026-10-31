@@ -6,20 +6,21 @@ import {
   useMemo,
   useRef,
   useState,
-  type PointerEvent as ReactPointerEvent,
 } from 'react';
 import {
+  AlertTriangle,
   Check,
   Columns2,
   Download,
   Eye,
   FileArchive,
+  Grid,
   Lightbulb,
-  PenLine,
   Play,
   RefreshCcw,
   RotateCcw,
   ScanFace,
+  Scissors,
   Share2,
   Sparkles,
   Trash2,
@@ -29,9 +30,12 @@ import {
 } from 'lucide-react';
 import {
   compressImage,
+  detectSignatureInkBounds,
   imageDimensions,
+  measureEdgeVariance,
   pixelsFromPhysical,
   processImage,
+  releaseCanvas,
   type CompressionMode,
   type ImageOptions,
   type ImageProcessResult,
@@ -39,6 +43,15 @@ import {
 } from '@/lib/image-engine';
 import type { ImageTool, PhysicalUnit } from '@/lib/image-tools';
 import { markRecentTool, savePreset } from '@/lib/tool-state';
+import { CanvasStage } from './CanvasStage';
+import { SignaturePad } from './SignaturePad';
+import {
+  computeA4GridLayout,
+  DEFAULT_TRANSFORM,
+  type BrushStroke,
+  type CropBox,
+  type StageTransform,
+} from '@/lib/stage-math';
 
 function outputExt(type: string) {
   return type === 'image/jpeg' ? 'jpg' : type === 'image/webp' ? 'webp' : 'png';
@@ -118,13 +131,13 @@ function getProTip(tool: ImageTool): { title: string; tip: string } {
     case 'photo-preset':
       return {
         title: 'Pro Tip · Passport & ID Framing',
-        tip: 'Use Zoom and Vertical position with the Alignment Guide to center head and shoulders, enable A4 Print Sheet for multi-copy printing, and always verify your portal’s official photo specs.',
+        tip: 'Drag, pinch, or scroll directly on the photo stage to position your head inside the visual aid oval, enable A4 Print Sheet for multi-copy printing, and always verify your portal’s official photo specs.',
       };
     case 'crop':
     case 'aspect-crop':
       return {
         title: 'Pro Tip · Composition & Framing',
-        tip: 'Use 1:1 for profile avatars, 3:4 for portrait ID cards, or 16:9 for widescreen banners, then fine-tune horizontal and vertical sliders with Live Preview active.',
+        tip: 'Use 1:1 for profile avatars, 3:4 for portrait ID cards, or 16:9 for widescreen banners, then drag or zoom directly on the stage.',
       };
     case 'dpi':
       return {
@@ -137,7 +150,7 @@ function getProTip(tool: ImageTool): { title: string; tip: string } {
     case 'signature-png':
       return {
         title: 'Pro Tip · High-Contrast Signatures',
-        tip: 'Sign on plain white paper under even lighting (avoid shadows) so automatic background removal and margin trimming produce clean edges.',
+        tip: 'Sign on plain white paper under even lighting (avoid shadows) so automatic background removal, edge softness, and margin trimming produce clean edges.',
       };
     case 'photo-editor':
       return {
@@ -206,6 +219,13 @@ function baseOptions(tool: ImageTool): ImageOptions {
     angle: tool.workflow === 'rotate' ? 90 : 0,
     flip: 'none',
     amount: tool.workflow === 'upscale' ? 2 : 42,
+    softness: 28,
+    recolorInk: false,
+    inkColor: '#0f172a',
+    transparentBackground: true,
+    autoTrim: tool.workflow === 'signature-maker' || tool.workflow === 'signature-remove-bg',
+    useCustomSize: false,
+    brushStrokes: [],
     text: tool.workflow === 'text-overlay' ? 'Sample Text' : undefined,
     opacity: 0.85,
     fontSize: 48,
@@ -216,11 +236,11 @@ function baseOptions(tool: ImageTool): ImageOptions {
     saturation: 100,
     blur: 0,
     position: 'center',
-    width: 1200,
-    height: 630,
-    unit: tool.defaultUnit || tool.preset?.unit || 'cm',
+    width: tool.workflow === 'signature-maker' ? 600 : 1200,
+    height: tool.workflow === 'signature-maker' ? 200 : 630,
+    unit: tool.defaultUnit || tool.preset?.unit || (tool.workflow === 'signature-maker' ? 'px' : 'cm'),
     physicalWidth:
-      tool.preset?.width || (tool.defaultUnit === 'mm' ? 35 : tool.category === 'Signature' ? 4 : 3.5),
+      tool.preset?.width || (tool.defaultUnit === 'mm' ? 35 : tool.category === 'Signature' ? 5 : 3.5),
     physicalHeight:
       tool.preset?.height || (tool.defaultUnit === 'mm' ? 45 : tool.category === 'Signature' ? 2 : 4.5),
     dpi: tool.preset?.dpi || 300,
@@ -238,6 +258,21 @@ function baseOptions(tool: ImageTool): ImageOptions {
     targetKb: 0,
   };
 }
+
+const PHOTO_BG_PRESETS = [
+  { label: 'White', hex: '#ffffff' },
+  { label: 'Light Blue', hex: '#dbeafe' },
+  { label: 'Soft Grey', hex: '#f1f5f9' },
+  { label: 'Sky Blue', hex: '#bae6fd' },
+  { label: 'Cream', hex: '#fef9c3' },
+];
+
+const SIGNATURE_INK_PRESETS = [
+  { label: 'Black', hex: '#0f172a' },
+  { label: 'Royal Blue', hex: '#1d4ed8' },
+  { label: 'Navy', hex: '#1e3a8a' },
+  { label: 'Crimson', hex: '#dc2626' },
+];
 
 export function ImageEditor({ tool }: { tool: ImageTool }) {
   const [files, setFiles] = useState<File[]>([]);
@@ -258,14 +293,13 @@ export function ImageEditor({ tool }: { tool: ImageTool }) {
   const [previewWorking, setPreviewWorking] = useState(false);
   const [progress, setProgress] = useState(0);
   const [livePreview, setLivePreview] = useState(
-    !['compress', 'compress-target', 'signature-compress'].includes(tool.workflow)
+    !['compress', 'compress-target'].includes(tool.workflow)
   );
-  const [lockAspect, setLockAspect] = useState(true);
+  const [lockAspect, setLockAspect] = useState(
+    !['resize-physical', 'photo-size'].includes(tool.workflow)
+  );
   const [ratio, setRatio] = useState(1);
   const [isDragging, setIsDragging] = useState(false);
-  const [hasDrawn, setHasDrawn] = useState(false);
-  const [penColor, setPenColor] = useState('#111111');
-  const [penWidth, setPenWidth] = useState(6);
   const [options, setOptions] = useState<ImageOptions>(() => baseOptions(tool));
   const [compressMode, setCompressMode] = useState<CompressionMode>(
     tool.workflow === 'compress' ? 'auto' : 'target'
@@ -276,14 +310,43 @@ export function ImageEditor({ tool }: { tool: ImageTool }) {
     tool.workflow === 'signature-compress' ? 'image/jpeg' : 'keep'
   );
 
+  const [loadedImage, setLoadedImage] = useState<HTMLImageElement | null>(null);
+  const [padCanvasSource, setPadCanvasSource] = useState<HTMLCanvasElement | null>(null);
+  const [isPadActive, setIsPadActive] = useState(false);
+  const [processedSigCanvas, setProcessedSigCanvas] = useState<HTMLCanvasElement | null>(null);
+  const [edgeVarianceInfo, setEdgeVarianceInfo] = useState<{ variance: number; highVariance: boolean } | null>(null);
+
+  const [stageTransform, setStageTransform] = useState<StageTransform>(() => ({
+    ...DEFAULT_TRANSFORM,
+    rotation: tool.workflow === 'rotate' ? 90 : 0,
+  }));
+  const [keyboardOpen, setKeyboardOpen] = useState(false);
+  const [mobileControlTab, setMobileControlTab] = useState<'options' | 'info'>('options');
+
+  const isInteractiveStageTool = [
+    'photo-preset',
+    'crop',
+    'aspect-crop',
+    'rotate',
+    'photo-editor',
+    'text-overlay',
+    'signature-maker',
+    'signature-trim',
+    'signature-resize',
+    'signature-remove-bg',
+    'signature-png',
+    'resize-physical',
+    'photo-size',
+  ].includes(tool.workflow);
+
   const inputRef = useRef<HTMLInputElement>(null);
-  const drawCanvas = useRef<HTMLCanvasElement>(null);
-  const drawing = useRef(false);
+  const a4PreviewCanvasRef = useRef<HTMLCanvasElement>(null);
   const dragDepth = useRef(0);
   const previewRun = useRef(0);
   const runSeqRef = useRef(0);
   const abortRef = useRef<AbortController | null>(null);
   const objectUrls = useRef<Set<string>>(new Set());
+  const padBlobTimerRef = useRef<number | null>(null);
 
   const maxMb = Number(process.env.NEXT_PUBLIC_IMAGE_MAX_INPUT_MB || 30);
   const configuredBatch = Number(process.env.NEXT_PUBLIC_IMAGE_BATCH_LIMIT || 20);
@@ -308,6 +371,11 @@ export function ImageEditor({ tool }: { tool: ImageTool }) {
       ? 'image/png'
       : null;
 
+  const photoPreset = tool.workflow === 'photo-preset';
+  const dedicatedPreset = tool.id === 'photo-35x45' || tool.id === 'photo-2x2';
+  const physicalWorkflow = ['resize-physical', 'photo-size', 'signature-resize'].includes(tool.workflow);
+  const isSignatureBgTool = tool.workflow === 'signature-remove-bg' || tool.workflow === 'signature-png';
+
   useEffect(() => {
     markRecentTool(tool.id);
   }, [tool.id]);
@@ -323,9 +391,188 @@ export function ImageEditor({ tool }: { tool: ImageTool }) {
     };
   }, []);
 
+  useEffect(() => {
+    if (!sourceUrl) {
+      setLoadedImage(null);
+      setEdgeVarianceInfo(null);
+      return;
+    }
+    let active = true;
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.onload = () => {
+      if (!active) return;
+      setLoadedImage(img);
+      if (photoPreset) {
+        const info = measureEdgeVariance(
+          img,
+          img.naturalWidth || img.width || 800,
+          img.naturalHeight || img.height || 600
+        );
+        setEdgeVarianceInfo(info);
+      }
+    };
+    img.src = sourceUrl;
+    return () => {
+      active = false;
+    };
+  }, [sourceUrl, photoPreset]);
+
+  // Live processed canvas for signature-remove-bg and signature-png so user sees real-time threshold, softness, recolor, and brush strokes on checkerboard
+  useEffect(() => {
+    if (!isSignatureBgTool || !loadedImage) {
+      setProcessedSigCanvas(prev => {
+        if (prev) releaseCanvas(prev);
+        return null;
+      });
+      return;
+    }
+
+    const srcW = loadedImage.naturalWidth || loadedImage.width || 800;
+    const srcH = loadedImage.naturalHeight || loadedImage.height || 400;
+    const maxEdge = 1200;
+    const scale = Math.min(1, maxEdge / Math.max(srcW, srcH));
+    const w = Math.max(1, Math.round(srcW * scale));
+    const h = Math.max(1, Math.round(srcH * scale));
+
+    const canvas = document.createElement('canvas');
+    canvas.width = w;
+    canvas.height = h;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    ctx.drawImage(loadedImage, 0, 0, w, h);
+    const imgData = ctx.getImageData(0, 0, w, h);
+    const d = imgData.data;
+
+    // Sample perimeter background color
+    let bgR = 255, bgG = 255, bgB = 255;
+    const samples: Array<[number, number, number]> = [];
+    for (let i = 0; i < 16; i++) {
+      const x = Math.round((i / 15) * (w - 1));
+      const idx = x * 4;
+      if (d[idx + 3]! > 16) samples.push([d[idx]!, d[idx + 1]!, d[idx + 2]!]);
+    }
+    if (samples.length > 0) {
+      const mid = Math.floor(samples.length / 2);
+      bgR = samples.map(s => s[0]).sort((a, b) => a - b)[mid]!;
+      bgG = samples.map(s => s[1]).sort((a, b) => a - b)[mid]!;
+      bgB = samples.map(s => s[2]).sort((a, b) => a - b)[mid]!;
+    }
+
+    const tol = Math.max(5, Math.min(220, options.amount ?? 42)) * 1.45;
+    const soft = Math.max(0, Math.min(100, options.softness ?? 28));
+    const softDist = tol * (1 + soft / 110);
+
+    let recolorRgb: [number, number, number] | null = null;
+    if (options.recolorInk && options.inkColor) {
+      const hex = options.inkColor.replace('#', '').trim();
+      const num = Number.parseInt(hex.padEnd(6, '0').slice(0, 6), 16);
+      if (Number.isFinite(num)) {
+        recolorRgb = [(num >> 16) & 255, (num >> 8) & 255, num & 255];
+      }
+    }
+
+    for (let i = 0; i < d.length; i += 4) {
+      if (d[i + 3]! <= 12) {
+        d[i + 3] = 0;
+        continue;
+      }
+      const dist = Math.hypot(d[i]! - bgR, d[i + 1]! - bgG, d[i + 2]! - bgB);
+      if (dist <= tol) {
+        d[i + 3] = 0;
+      } else if (soft > 0 && dist < softDist) {
+        const ratio = Math.max(0.1, Math.min(0.95, (dist - tol * 0.55) / Math.max(1, softDist - tol * 0.55)));
+        d[i + 3] = Math.round(d[i + 3]! * ratio);
+      }
+      if (d[i + 3]! > 0 && recolorRgb) {
+        d[i] = recolorRgb[0];
+        d[i + 1] = recolorRgb[1];
+        d[i + 2] = recolorRgb[2];
+      }
+    }
+    ctx.putImageData(imgData, 0, 0);
+
+    // Apply brush strokes scaled to proxy canvas
+    const strokes = options.brushStrokes || [];
+    for (const stroke of strokes) {
+      if (!stroke.points.length) continue;
+      ctx.save();
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
+      ctx.lineWidth = Math.max(2, stroke.size * scale);
+      if (stroke.mode === 'erase') {
+        ctx.globalCompositeOperation = 'destination-out';
+        ctx.strokeStyle = 'rgba(0,0,0,1)';
+        ctx.fillStyle = 'rgba(0,0,0,1)';
+      } else {
+        ctx.globalCompositeOperation = 'source-over';
+        const color = options.recolorInk && options.inkColor ? options.inkColor : '#0f172a';
+        ctx.strokeStyle = color;
+        ctx.fillStyle = color;
+      }
+      if (stroke.points.length === 1) {
+        ctx.beginPath();
+        ctx.arc(stroke.points[0]!.x * scale, stroke.points[0]!.y * scale, (stroke.size * scale) / 2, 0, Math.PI * 2);
+        ctx.fill();
+      } else {
+        ctx.beginPath();
+        ctx.moveTo(stroke.points[0]!.x * scale, stroke.points[0]!.y * scale);
+        for (let i = 1; i < stroke.points.length; i++) {
+          ctx.lineTo(stroke.points[i]!.x * scale, stroke.points[i]!.y * scale);
+        }
+        ctx.stroke();
+      }
+      ctx.restore();
+    }
+
+      setProcessedSigCanvas(prev => {
+        if (prev && prev !== canvas) {
+          window.setTimeout(() => releaseCanvas(prev), 200);
+        }
+        return canvas;
+      });
+  }, [
+    isSignatureBgTool,
+    loadedImage,
+    options.amount,
+    options.softness,
+    options.recolorInk,
+    options.inkColor,
+    options.brushStrokes,
+  ]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || !window.visualViewport) return;
+    const vv = window.visualViewport;
+    const handleResize = () => {
+      if (window.innerHeight - vv.height > 120) {
+        setKeyboardOpen(true);
+      } else {
+        setKeyboardOpen(false);
+      }
+    };
+    vv.addEventListener('resize', handleResize);
+    return () => vv.removeEventListener('resize', handleResize);
+  }, []);
+
+  const handleStageTransformChange = useCallback((next: StageTransform) => {
+    setStageTransform(next);
+    setOptions(prev => ({
+      ...prev,
+      zoom: next.scale,
+      angle: next.rotation,
+      flip: next.flipX ? 'horizontal' : 'none',
+      anchorX: 0.5 - next.x,
+      anchorY: 0.42 - next.y,
+      stageTransform: next,
+    }));
+  }, []);
+
   useEffect(
     () => () => {
       abortRef.current?.abort();
+      if (padBlobTimerRef.current) window.clearTimeout(padBlobTimerRef.current);
       objectUrls.current.forEach(url => URL.revokeObjectURL(url));
       objectUrls.current.clear();
     },
@@ -338,11 +585,11 @@ export function ImageEditor({ tool }: { tool: ImageTool }) {
     return url;
   }
 
-  function revokeObjectUrl(url: string) {
+  const revokeObjectUrl = useCallback((url: string) => {
     if (!url) return;
     URL.revokeObjectURL(url);
     objectUrls.current.delete(url);
-  }
+  }, []);
 
   function cancelActiveJob(showCancelNote = false) {
     previewRun.current += 1;
@@ -359,7 +606,7 @@ export function ImageEditor({ tool }: { tool: ImageTool }) {
     }
   }
 
-  function clearResults() {
+  const clearResults = useCallback(() => {
     previewRun.current += 1;
     setPreviewUrl(current => {
       if (current) revokeObjectUrl(current);
@@ -371,12 +618,15 @@ export function ImageEditor({ tool }: { tool: ImageTool }) {
       current.forEach(item => revokeObjectUrl(item.url));
       return [];
     });
-  }
+  }, [revokeObjectUrl]);
 
   function clearSelection() {
     cancelActiveJob(false);
     setFiles([]);
     setSourceMeta(null);
+    setPadCanvasSource(null);
+    setIsPadActive(false);
+    setEdgeVarianceInfo(null);
     setShowOriginalPreview(false);
     setSplitCompare(false);
     setIsDragging(false);
@@ -387,6 +637,62 @@ export function ImageEditor({ tool }: { tool: ImageTool }) {
     });
     clearResults();
   }
+
+  // Handle direct drawing updates from SignaturePad (no separate "Use drawing" step needed)
+  const handleSignaturePadChange = useCallback(
+    (cleanCanvas: HTMLCanvasElement | null, hasContent: boolean) => {
+      if (padBlobTimerRef.current) {
+        window.clearTimeout(padBlobTimerRef.current);
+        padBlobTimerRef.current = null;
+      }
+
+      if (!hasContent || !cleanCanvas) {
+        setPadCanvasSource(prev => {
+          if (prev) window.setTimeout(() => releaseCanvas(prev), 200);
+          return null;
+        });
+        setIsPadActive(false);
+        setFiles([]);
+        setSourceMeta(null);
+        clearResults();
+        return;
+      }
+
+      // Create an immediate snapshot canvas for CanvasStage so dragging/scaling/rotating works immediately
+      const snap = document.createElement('canvas');
+      snap.width = cleanCanvas.width;
+      snap.height = cleanCanvas.height;
+      snap.getContext('2d')?.drawImage(cleanCanvas, 0, 0);
+
+      setPadCanvasSource(prev => {
+        if (prev) window.setTimeout(() => releaseCanvas(prev), 200);
+        return snap;
+      });
+      setIsPadActive(true);
+      setRatio(cleanCanvas.width / cleanCanvas.height);
+
+      // Update File in background (debounced slightly) so live preview & direct export work seamlessly
+      padBlobTimerRef.current = window.setTimeout(() => {
+        cleanCanvas.toBlob(blob => {
+          if (!blob) return;
+          const drawnFile = new File([blob], 'drawn-signature.png', { type: 'image/png' });
+          setFiles([drawnFile]);
+          setSourceMeta({
+            width: cleanCanvas.width,
+            height: cleanCanvas.height,
+            size: drawnFile.size,
+            type: 'PNG',
+            aspectRatio: '3:1',
+            aspectDecimal: '3.00',
+            megapixels: ((cleanCanvas.width * cleanCanvas.height) / 1_000_000).toFixed(2),
+            orientation: 'Landscape',
+            bitsPerPixel: ((drawnFile.size * 8) / (cleanCanvas.width * cleanCanvas.height)).toFixed(2),
+          });
+        }, 'image/png');
+      }, 40);
+    },
+    [clearResults]
+  );
 
   const effectiveOptions = useMemo<ImageOptions>(
     () => ({
@@ -404,16 +710,122 @@ export function ImageEditor({ tool }: { tool: ImageTool }) {
   const calculatedPixels = useMemo(() => {
     const unit = options.unit || 'cm';
     const dpi = Number(options.dpi || 300);
+    if (tool.workflow === 'signature-maker' && options.useCustomSize && unit === 'px') {
+      return {
+        width: Math.max(16, Math.round(Number(options.width || 600))),
+        height: Math.max(16, Math.round(Number(options.height || 200))),
+      };
+    }
     return {
       width: pixelsFromPhysical(Number(options.physicalWidth || 0), unit, dpi),
       height: pixelsFromPhysical(Number(options.physicalHeight || 0), unit, dpi),
     };
-  }, [options.unit, options.dpi, options.physicalWidth, options.physicalHeight]);
+  }, [
+    options.unit,
+    options.dpi,
+    options.physicalWidth,
+    options.physicalHeight,
+    options.useCustomSize,
+    options.width,
+    options.height,
+    tool.workflow,
+  ]);
+
+  const physicalReadout = useMemo(() => {
+    const dpi = Math.max(36, Number(options.dpi || 300));
+    const wPx = calculatedPixels.width;
+    const hPx = calculatedPixels.height;
+    const wMm = ((wPx / dpi) * 25.4).toFixed(1);
+    const hMm = ((hPx / dpi) * 25.4).toFixed(1);
+    const wIn = (wPx / dpi).toFixed(2);
+    const hIn = (hPx / dpi).toFixed(2);
+    return { wMm, hMm, wIn, hIn, dpi };
+  }, [calculatedPixels.width, calculatedPixels.height, options.dpi]);
+
+  const a4Layout = useMemo(() => {
+    if (!photoPreset) return null;
+    return computeA4GridLayout(
+      calculatedPixels.width,
+      calculatedPixels.height,
+      Number(options.dpi || 300),
+      options.a4Count ?? 8,
+      options.a4MarginMm ?? 10,
+      options.a4SpacingMm ?? 4
+    );
+  }, [
+    photoPreset,
+    calculatedPixels.width,
+    calculatedPixels.height,
+    options.dpi,
+    options.a4Count,
+    options.a4MarginMm,
+    options.a4SpacingMm,
+  ]);
+
+  // Draw live A4 sheet miniature layout preview when a4Sheet is enabled
+  useEffect(() => {
+    if (!photoPreset || !options.a4Sheet || !a4Layout || !a4PreviewCanvasRef.current) return;
+    const canvas = a4PreviewCanvasRef.current;
+    const previewW = 210;
+    const previewH = 297;
+    canvas.width = previewW;
+    canvas.height = previewH;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, previewW, previewH);
+    ctx.strokeStyle = '#94a3b8';
+    ctx.lineWidth = 1;
+    ctx.strokeRect(0.5, 0.5, previewW - 1, previewH - 1);
+
+    const scaleX = previewW / Math.max(1, a4Layout.sheetW);
+    const scaleY = previewH / Math.max(1, a4Layout.sheetH);
+
+    // Draw printable margin guide
+    const mX = a4Layout.marginPx * scaleX;
+    const mY = a4Layout.marginPx * scaleY;
+    ctx.save();
+    ctx.setLineDash([3, 3]);
+    ctx.strokeStyle = '#e2e8f0';
+    ctx.strokeRect(mX, mY, previewW - mX * 2, previewH - mY * 2);
+    ctx.restore();
+
+    for (const tile of a4Layout.tiles) {
+      const tx = tile.x * scaleX;
+      const ty = tile.y * scaleY;
+      const tw = tile.width * scaleX;
+      const th = tile.height * scaleY;
+
+      // Cut guide outside tile
+      ctx.strokeStyle = '#cbd5e1';
+      ctx.lineWidth = 1;
+      ctx.strokeRect(tx - 0.5, ty - 0.5, tw + 1, th + 1);
+
+      // Tile fill
+      ctx.fillStyle = options.backgroundColor || '#dbeafe';
+      ctx.fillRect(tx, ty, tw, th);
+
+      if (loadedImage) {
+        ctx.save();
+        ctx.beginPath();
+        ctx.rect(tx, ty, tw, th);
+        ctx.clip();
+        ctx.drawImage(loadedImage, tx, ty, tw, th);
+        ctx.restore();
+      }
+    }
+  }, [photoPreset, options.a4Sheet, options.backgroundColor, a4Layout, loadedImage]);
 
   const proTip = useMemo(() => getProTip(tool), [tool]);
 
   const processOne = useCallback(
-    async (file: File, signal?: AbortSignal, onProgress?: (pct: number) => void): Promise<ImageProcessResult> => {
+    async (
+      file: File,
+      signal?: AbortSignal,
+      onProgress?: (pct: number) => void,
+      isLivePreviewProxy = false
+    ): Promise<ImageProcessResult> => {
       if (
         tool.workflow === 'compress' ||
         tool.workflow === 'compress-target' ||
@@ -432,9 +844,23 @@ export function ImageEditor({ tool }: { tool: ImageTool }) {
           onProgress,
         });
       }
-      return processImage(file, tool, effectiveOptions);
+      // During live preview of photo-preset, skip full-resolution A4 build and binary search so preview stays instant
+      const runOpts: ImageOptions = isLivePreviewProxy && photoPreset
+        ? {
+            ...effectiveOptions,
+            a4Sheet: false,
+            targetKb: 0,
+            signal,
+            onProgress,
+          }
+        : {
+            ...effectiveOptions,
+            signal,
+            onProgress,
+          };
+      return processImage(file, tool, runOpts);
     },
-    [tool, compressMode, targetValue, targetBytes, compressOutput, effectiveOptions]
+    [tool, compressMode, targetValue, targetBytes, compressOutput, effectiveOptions, photoPreset]
   );
 
   async function choose(selectedFiles: File[]) {
@@ -545,9 +971,10 @@ export function ImageEditor({ tool }: { tool: ImageTool }) {
             : current.format;
         return {
           ...current,
+          brushStrokes: [],
           ...(nextFormat ? { format: nextFormat } : {}),
           ...(tool.workflow === 'resize-px' ? { width: dimensions.width, height: dimensions.height } : {}),
-          ...(tool.workflow === 'crop'
+          ...(tool.workflow === 'crop' || tool.workflow === 'signature-trim'
             ? { cropX: 0, cropY: 0, cropWidth: dimensions.width, cropHeight: dimensions.height }
             : {}),
           ...(tool.workflow === 'text-overlay'
@@ -571,7 +998,7 @@ export function ImageEditor({ tool }: { tool: ImageTool }) {
     setFiles(valid);
   }
 
-  // Debounced (~250 ms) live preview for lightweight adjustments
+  // Debounced (~250 ms) live preview for lightweight adjustments and signature-size-reducer estimated KB
   useEffect(() => {
     if (!livePreview || working || !files[0]) return;
     const runId = ++previewRun.current;
@@ -580,7 +1007,7 @@ export function ImageEditor({ tool }: { tool: ImageTool }) {
       void (async () => {
         setPreviewWorking(true);
         try {
-          const processed = await processOne(files[0]!, controller.signal);
+          const processed = await processOne(files[0]!, controller.signal, undefined, true);
           if (runId !== previewRun.current || controller.signal.aborted) return;
           const nextUrl = makeObjectUrl(processed.blob);
           setPreviewUrl(current => {
@@ -604,19 +1031,22 @@ export function ImageEditor({ tool }: { tool: ImageTool }) {
       window.clearTimeout(timer);
       controller.abort();
     };
-  }, [files, livePreview, processOne, working]);
+  }, [files, livePreview, processOne, working, revokeObjectUrl]);
 
   async function run() {
     if (working) return;
     let activeFiles = files;
-    if (!activeFiles.length && tool.workflow === 'signature-maker' && hasDrawn && drawCanvas.current) {
-      const blob = await new Promise<Blob | null>(resolve => drawCanvas.current?.toBlob(resolve, 'image/png'));
+
+    // If user drew on SignaturePad and clicked Process immediately before the 60ms debounce completed:
+    if (!activeFiles.length && tool.workflow === 'signature-maker' && padCanvasSource) {
+      const blob = await new Promise<Blob | null>(resolve => padCanvasSource.toBlob(resolve, 'image/png'));
       if (blob) {
         const drawnFile = new File([blob], 'drawn-signature.png', { type: 'image/png' });
-        await choose([drawnFile]);
+        setFiles([drawnFile]);
         activeFiles = [drawnFile];
       }
     }
+
     if (!activeFiles.length) {
       setError(
         tool.workflow === 'signature-maker'
@@ -646,11 +1076,16 @@ export function ImageEditor({ tool }: { tool: ImageTool }) {
           throw new Error('Processing cancelled.');
         }
         const file = selected[index]!;
-        const processed = await processOne(file, controller.signal, pct => {
-          if (currentSeq === runSeqRef.current && selected.length === 1) {
-            setProgress(Math.max(10, Math.min(95, pct)));
-          }
-        });
+        const processed = await processOne(
+          file,
+          controller.signal,
+          pct => {
+            if (currentSeq === runSeqRef.current && selected.length === 1) {
+              setProgress(Math.max(10, Math.min(95, pct)));
+            }
+          },
+          false
+        );
         if (controller.signal.aborted || currentSeq !== runSeqRef.current) {
           throw new Error('Processing cancelled.');
         }
@@ -665,7 +1100,6 @@ export function ImageEditor({ tool }: { tool: ImageTool }) {
           `${index + 1} of ${selected.length} result${selected.length === 1 ? '' : 's'} ready.`
         );
         setProgress(Math.round(((index + 1) / selected.length) * 100));
-        // Yield briefly to keep UI responsive during large multi-file batches
         if (selected.length > 1) {
           await new Promise(resolve => window.setTimeout(resolve, 0));
         }
@@ -720,7 +1154,18 @@ export function ImageEditor({ tool }: { tool: ImageTool }) {
 
   function resetSettings() {
     cancelActiveJob(false);
-    setOptions(baseOptions(tool));
+    const base = baseOptions(tool);
+    if (sourceMeta && (tool.workflow === 'crop' || tool.workflow === 'signature-trim')) {
+      base.cropX = 0;
+      base.cropY = 0;
+      base.cropWidth = sourceMeta.width;
+      base.cropHeight = sourceMeta.height;
+    }
+    setOptions(base);
+    setStageTransform({
+      ...DEFAULT_TRANSFORM,
+      rotation: tool.workflow === 'rotate' ? 90 : 0,
+    });
     setCompressMode(tool.workflow === 'compress' ? 'auto' : 'target');
     setTargetValue(tool.workflow === 'signature-compress' ? 20 : 100);
     setTargetUnit('KB');
@@ -753,6 +1198,52 @@ export function ImageEditor({ tool }: { tool: ImageTool }) {
       ...(lockAspect && ratio > 0 ? { width: Math.max(1, Math.round(value * ratio)) } : {}),
     }));
   }
+
+  function resizePhysicalWidth(value: number) {
+    setOptions(current => ({
+      ...current,
+      physicalWidth: value,
+      ...(lockAspect && ratio > 0
+        ? {
+            physicalHeight:
+              (current.unit || 'cm') === 'px'
+                ? Math.max(1, Math.round(value / ratio))
+                : Math.max(0.1, Number((value / ratio).toFixed(2))),
+          }
+        : {}),
+    }));
+  }
+
+  function resizePhysicalHeight(value: number) {
+    setOptions(current => ({
+      ...current,
+      physicalHeight: value,
+      ...(lockAspect && ratio > 0
+        ? {
+            physicalWidth:
+              (current.unit || 'cm') === 'px'
+                ? Math.max(1, Math.round(value * ratio))
+                : Math.max(0.1, Number((value * ratio).toFixed(2))),
+          }
+        : {}),
+    }));
+  }
+
+  const handleAutoTrimSignature = useCallback(() => {
+    const src = loadedImage || padCanvasSource;
+    if (!src) return;
+    const w = sourceMeta?.width || (src instanceof HTMLCanvasElement ? src.width : src.naturalWidth) || 800;
+    const h = sourceMeta?.height || (src instanceof HTMLCanvasElement ? src.height : src.naturalHeight) || 300;
+    const box = detectSignatureInkBounds(src, w, h, options.amount ?? 42, options.trimMargin ?? 12);
+    setOptions(current => ({
+      ...current,
+      cropX: box.x,
+      cropY: box.y,
+      cropWidth: box.width,
+      cropHeight: box.height,
+    }));
+    setMessage(`Auto-trimmed to ink bounds: ${box.width} × ${box.height} px.`);
+  }, [loadedImage, padCanvasSource, sourceMeta, options.amount, options.trimMargin]);
 
   function numberField(key: keyof ImageOptions, label: string, min = 0, max = 12000, step = 1) {
     const id = `field-${tool.id}-${String(key)}`;
@@ -846,61 +1337,6 @@ export function ImageEditor({ tool }: { tool: ImageTool }) {
     }
   }
 
-  function drawPoint(event: ReactPointerEvent<HTMLCanvasElement>) {
-    const canvas = drawCanvas.current;
-    if (!canvas || !drawing.current) return;
-    const rect = canvas.getBoundingClientRect();
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-    const x = ((event.clientX - rect.left) * canvas.width) / rect.width;
-    const y = ((event.clientY - rect.top) * canvas.height) / rect.height;
-    ctx.lineTo(x, y);
-    ctx.stroke();
-  }
-
-  function drawStart(event: ReactPointerEvent<HTMLCanvasElement>) {
-    const canvas = drawCanvas.current;
-    if (!canvas) return;
-    canvas.setPointerCapture(event.pointerId);
-    const rect = canvas.getBoundingClientRect();
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-    const x = ((event.clientX - rect.left) * canvas.width) / rect.width;
-    const y = ((event.clientY - rect.top) * canvas.height) / rect.height;
-    ctx.strokeStyle = penColor;
-    ctx.lineWidth = penWidth;
-    ctx.lineCap = 'round';
-    ctx.lineJoin = 'round';
-    ctx.beginPath();
-    ctx.moveTo(x, y);
-    ctx.lineTo(x, y);
-    ctx.stroke();
-    drawing.current = true;
-    setHasDrawn(true);
-  }
-
-  function drawEnd() {
-    drawing.current = false;
-    drawCanvas.current?.getContext('2d')?.closePath();
-  }
-
-  function clearDrawing() {
-    const canvas = drawCanvas.current;
-    if (canvas) canvas.getContext('2d')?.clearRect(0, 0, canvas.width, canvas.height);
-    setHasDrawn(false);
-  }
-
-  async function applyDrawnSignature() {
-    const canvas = drawCanvas.current;
-    if (!canvas) return;
-    const blob = await new Promise<Blob | null>(resolve => canvas.toBlob(resolve, 'image/png'));
-    if (!blob) {
-      setError('Could not create the drawn signature.');
-      return;
-    }
-    await choose([new File([blob], 'drawn-signature.png', { type: 'image/png' })]);
-  }
-
   function extractDroppedFiles(dataTransfer: DataTransfer | null): File[] {
     if (!dataTransfer) return [];
     if (dataTransfer.files && dataTransfer.files.length > 0) {
@@ -980,9 +1416,34 @@ export function ImageEditor({ tool }: { tool: ImageTool }) {
       tool.workflow
     ) &&
     (effectiveOptions.format === 'image/jpeg' || effectiveOptions.format === 'image/webp');
-  const physicalWorkflow = ['resize-physical', 'photo-size', 'signature-resize'].includes(tool.workflow);
-  const photoPreset = tool.workflow === 'photo-preset';
-  const dedicatedPreset = tool.id === 'photo-35x45' || tool.id === 'photo-2x2';
+
+  const activeStageSource: CanvasImageSource | null =
+    isSignatureBgTool && processedSigCanvas
+      ? processedSigCanvas
+      : tool.workflow === 'signature-maker' && isPadActive && padCanvasSource
+      ? padCanvasSource
+      : loadedImage;
+
+  const activeStageSourceW =
+    isSignatureBgTool && processedSigCanvas
+      ? processedSigCanvas.width
+      : tool.workflow === 'signature-maker' && isPadActive && padCanvasSource
+      ? padCanvasSource.width
+      : sourceMeta?.width || loadedImage?.naturalWidth || 800;
+
+  const activeStageSourceH =
+    isSignatureBgTool && processedSigCanvas
+      ? processedSigCanvas.height
+      : tool.workflow === 'signature-maker' && isPadActive && padCanvasSource
+      ? padCanvasSource.height
+      : sourceMeta?.height || loadedImage?.naturalHeight || 600;
+
+  const activeCropBox: CropBox = {
+    x: options.cropX ?? 0,
+    y: options.cropY ?? 0,
+    width: options.cropWidth || activeStageSourceW,
+    height: options.cropHeight || activeStageSourceH,
+  };
 
   return (
     <div className="image-editor editor-shell">
@@ -995,131 +1456,123 @@ export function ImageEditor({ tool }: { tool: ImageTool }) {
       </div>
       <section className="editor-preview panel">
         {isOffline ? (
-          <div className="notice" role="status" aria-live="polite" style={{ marginTop: 0, marginBottom: 10, display: 'flex', alignItems: 'center', gap: 8 }}>
+          <div
+            className="notice"
+            role="status"
+            aria-live="polite"
+            style={{ marginTop: 0, marginBottom: 10, display: 'flex', alignItems: 'center', gap: 8 }}
+          >
             <WifiOff size={15} />
             <span>Offline mode active — local browser image processing continues to work normally.</span>
           </div>
         ) : null}
 
         {tool.workflow === 'signature-maker' ? (
-          <div className="signature-draw-card">
-            <div className="signature-draw-head">
-              <div>
-                <b>Draw signature</b>
-                <span>Use mouse, touch or pen. Or upload an existing signature below.</span>
-              </div>
-              <PenLine size={20} />
-            </div>
-            <div className="target-preset-row" style={{ marginBottom: '8px' }}>
-              <button
-                type="button"
-                onClick={() => setPenColor('#111111')}
-                style={{ borderColor: penColor === '#111111' ? '#1769e8' : undefined }}
-              >
-                Black ink
-              </button>
-              <button
-                type="button"
-                onClick={() => setPenColor('#1d4ed8')}
-                style={{ borderColor: penColor === '#1d4ed8' ? '#1769e8' : undefined }}
-              >
-                Blue ink
-              </button>
-              <button
-                type="button"
-                onClick={() => setPenWidth(3)}
-                style={{ borderColor: penWidth === 3 ? '#1769e8' : undefined }}
-              >
-                Thin
-              </button>
-              <button
-                type="button"
-                onClick={() => setPenWidth(6)}
-                style={{ borderColor: penWidth === 6 ? '#1769e8' : undefined }}
-              >
-                Medium
-              </button>
-              <button
-                type="button"
-                onClick={() => setPenWidth(9)}
-                style={{ borderColor: penWidth === 9 ? '#1769e8' : undefined }}
-              >
-                Bold
-              </button>
-            </div>
-            <canvas
-              ref={drawCanvas}
-              width={900}
-              height={300}
-              role="img"
-              aria-label="Signature drawing pad"
-              className="signature-canvas"
-              onPointerDown={drawStart}
-              onPointerMove={drawPoint}
-              onPointerUp={drawEnd}
-              onPointerCancel={drawEnd}
-              onPointerLeave={drawEnd}
-            />
-            <div className="signature-draw-actions">
-              <button className="btn" type="button" onClick={clearDrawing}>
-                <Trash2 size={16} /> Clear
-              </button>
-              <button className="btn primary" type="button" onClick={() => void applyDrawnSignature()}>
-                <Check size={16} /> Use drawing
-              </button>
-            </div>
-          </div>
+          <SignaturePad onSignatureChange={handleSignaturePadChange} />
         ) : null}
 
-        <div
-          className={`dropzone ${isDragging ? 'drag-active' : ''}`}
-          role="button"
-          tabIndex={0}
-          onClick={() => inputRef.current?.click()}
-          onKeyDown={event => {
-            if (event.key === 'Enter' || event.key === ' ') {
-              event.preventDefault();
-              inputRef.current?.click();
-            }
-          }}
-          onDragEnter={handleDragEnter}
-          onDragOver={handleDragOver}
-          onDragLeave={handleDragLeave}
-          onDrop={handleDrop}
-        >
-          <UploadCloud size={28} />
-          <div>
-            <b>
-              {isDragging
-                ? 'Drop image here to upload'
-                : tool.workflow === 'signature-maker'
-                ? 'Drag & drop or upload signature image'
-                : 'Drag & drop image here, or click to choose'}
-            </b>
-            <span>
-              JPG, PNG, WebP, GIF or SVG · up to {maxMb} MB
-              {!singleRun ? ` · up to ${runLimit} files` : ''}
-            </span>
+        {/* Compact file bar once loaded, or full dropzone if empty */}
+        {files.length > 0 || sourceUrl ? (
+          <div className="compact-file-bar" role="status" aria-label="Loaded image file">
+            <div className="compact-file-info">
+              <UploadCloud size={16} className="compact-file-icon" />
+              <span className="compact-file-name" title={files[0]?.name || 'image'}>
+                {files[0]?.name || 'Loaded image'}
+              </span>
+              <span className="compact-file-size">
+                ({files[0] ? formatBytes(files[0].size) : sourceMeta ? formatBytes(sourceMeta.size) : ''})
+              </span>
+            </div>
+            <div className="compact-file-actions">
+              <button
+                type="button"
+                className="btn compact"
+                onClick={() => inputRef.current?.click()}
+                title="Change image file"
+              >
+                Change image
+              </button>
+              <button
+                type="button"
+                className="icon-button compact danger"
+                onClick={clearSelection}
+                title="Clear selected image"
+                aria-label="Clear selected image"
+              >
+                <Trash2 size={16} />
+              </button>
+            </div>
+            <input
+              ref={inputRef}
+              type="file"
+              accept="image/*,.svg"
+              multiple={!singleRun}
+              hidden
+              aria-label="Upload image file"
+              onChange={event => {
+                const chosen = Array.from(event.currentTarget.files || []);
+                event.currentTarget.value = '';
+                void choose(chosen);
+              }}
+            />
           </div>
-          <input
-            ref={inputRef}
-            type="file"
-            accept="image/*,.svg"
-            multiple={!singleRun}
-            hidden
-            aria-label="Upload image file"
-            onChange={event => {
-              const chosen = Array.from(event.currentTarget.files || []);
-              event.currentTarget.value = '';
-              void choose(chosen);
+        ) : (
+          <div
+            className={`dropzone ${isDragging ? 'drag-active' : ''}`}
+            role="button"
+            tabIndex={0}
+            onClick={() => inputRef.current?.click()}
+            onKeyDown={event => {
+              if (event.key === 'Enter' || event.key === ' ') {
+                event.preventDefault();
+                inputRef.current?.click();
+              }
             }}
-          />
-        </div>
+            onDragEnter={handleDragEnter}
+            onDragOver={handleDragOver}
+            onDragLeave={handleDragLeave}
+            onDrop={handleDrop}
+          >
+            <UploadCloud size={28} />
+            <div>
+              <b>
+                {isDragging
+                  ? 'Drop image here to upload'
+                  : tool.workflow === 'signature-maker'
+                  ? 'Or drag & drop an existing signature image'
+                  : 'Drag & drop image here, or click to choose'}
+              </b>
+              <span>
+                JPG, PNG, WebP, GIF or SVG · up to {maxMb} MB
+                {!singleRun ? ` · up to ${runLimit} files` : ''}
+              </span>
+            </div>
+            <input
+              ref={inputRef}
+              type="file"
+              accept="image/*,.svg"
+              multiple={!singleRun}
+              hidden
+              aria-label="Upload image file"
+              onChange={event => {
+                const chosen = Array.from(event.currentTarget.files || []);
+                event.currentTarget.value = '';
+                void choose(chosen);
+              }}
+            />
+          </div>
+        )}
 
         <div className="preview-toolbar">
           <div>
             <span className="eyebrow">Input &amp; preview</span>
-            <h2>{files.length ? files[0]!.name : 'Select an image'}</h2>
+            <div className="small muted preview-subtitle">
+              {files.length
+                ? files[0]!.name
+                : isPadActive
+                ? 'Live drawn signature on page preview'
+                : 'Choose an image to begin editing'}
+            </div>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
             {sourceUrl && activeResultUrl ? (
@@ -1146,14 +1599,14 @@ export function ImageEditor({ tool }: { tool: ImageTool }) {
                 </button>
               </>
             ) : null}
-            {photoPreset && sourceUrl && !options.a4Sheet ? (
+            {photoPreset && (sourceUrl || activeStageSource) ? (
               <button
                 type="button"
                 className={`btn compact ${showFaceGuide ? 'primary' : ''}`}
                 onClick={() => setShowFaceGuide(v => !v)}
-                title="Toggle head and shoulders framing guide"
+                title="Toggle head and shoulders visual framing aid"
               >
-                <ScanFace size={14} /> Face guide
+                <ScanFace size={14} /> Visual aid guides
               </button>
             ) : null}
             <label className="preview-toggle">
@@ -1167,98 +1620,217 @@ export function ImageEditor({ tool }: { tool: ImageTool }) {
           </div>
         </div>
 
-        <div
-          className={`preview-stage ${isDragging ? 'drag-active' : ''}`}
-          onDragEnter={handleDragEnter}
-          onDragOver={handleDragOver}
-          onDragLeave={handleDragLeave}
-          onDrop={handleDrop}
-        >
-          {sourceUrl ? (
-            splitCompare && activeResultUrl ? (
-              <div className="before-after-container">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={activeResultUrl} alt="Processed result preview" className="ba-after-img" />
-                <div className="ba-before-clip" style={{ clipPath: `inset(0 ${100 - comparePosition}% 0 0)` }}>
+        {/* Interactive CanvasStage for photo-preset, signature tools, crop, and resize */}
+        {isInteractiveStageTool && activeStageSource && !splitCompare && !showOriginalPreview ? (
+          <CanvasStage
+            imageSource={activeStageSource}
+            sourceWidth={activeStageSourceW}
+            sourceHeight={activeStageSourceH}
+            aspectRatio={
+              photoPreset
+                ? calculatedPixels.width / Math.max(1, calculatedPixels.height)
+                : tool.workflow === 'aspect-crop'
+                ? (options.ratioWidth || 1) / (options.ratioHeight || 1)
+                : tool.workflow === 'signature-maker'
+                ? options.useCustomSize
+                  ? calculatedPixels.width / Math.max(1, calculatedPixels.height)
+                  : 3
+                : tool.workflow === 'signature-resize' || physicalWorkflow
+                ? calculatedPixels.width / Math.max(1, calculatedPixels.height)
+                : activeStageSourceW / Math.max(1, activeStageSourceH)
+            }
+            fitMode={photoPreset || tool.workflow === 'aspect-crop' ? 'cover' : 'fit'}
+            transform={stageTransform}
+            onChange={handleStageTransformChange}
+            showGuides={photoPreset ? showFaceGuide : true}
+            guideType={photoPreset ? 'face' : tool.workflow === 'signature-trim' || tool.workflow === 'crop' ? 'none' : 'grid'}
+            backgroundColor={
+              tool.workflow === 'signature-maker' && options.transparentBackground === false
+                ? '#ffffff'
+                : options.backgroundColor || '#ffffff'
+            }
+            checkerboard={
+              (tool.workflow === 'signature-maker' && options.transparentBackground !== false) ||
+              tool.workflow === 'signature-trim' ||
+              tool.workflow === 'signature-remove-bg' ||
+              tool.workflow === 'signature-png'
+            }
+            cropMode={tool.workflow === 'signature-trim' || tool.workflow === 'crop'}
+            cropBox={activeCropBox}
+            onCropChange={box =>
+              setOptions(c => ({
+                ...c,
+                cropX: box.x,
+                cropY: box.y,
+                cropWidth: box.width,
+                cropHeight: box.height,
+              }))
+            }
+            lockCropAspect={tool.workflow === 'signature-trim' ? lockAspect : false}
+            onAutoTrim={tool.workflow === 'signature-trim' ? handleAutoTrimSignature : undefined}
+            brushEnabled={isSignatureBgTool}
+            brushStrokes={options.brushStrokes || []}
+            onBrushStrokesChange={(strokes: BrushStroke[]) =>
+              setOptions(c => ({ ...c, brushStrokes: strokes }))
+            }
+            ariaLabel={`Interactive stage for ${tool.name}`}
+            onReset={resetSettings}
+          />
+        ) : (
+          <div
+            className={`preview-stage ${isDragging ? 'drag-active' : ''}`}
+            onDragEnter={handleDragEnter}
+            onDragOver={handleDragOver}
+            onDragLeave={handleDragLeave}
+            onDrop={handleDrop}
+          >
+            {sourceUrl ? (
+              splitCompare && activeResultUrl ? (
+                <div className="before-after-container">
                   {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={sourceUrl} alt="Original source preview" className="ba-before-img" />
+                  <img src={activeResultUrl} alt="Processed result preview" className="ba-after-img" />
+                  <div className="ba-before-clip" style={{ clipPath: `inset(0 ${100 - comparePosition}% 0 0)` }}>
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={sourceUrl} alt="Original source preview" className="ba-before-img" />
+                  </div>
+                  <div className="ba-divider" style={{ left: `${comparePosition}%` }} aria-hidden="true" />
+                  <div className="preview-badge">Before ({comparePosition}%) / After</div>
+                  <input
+                    type="range"
+                    min={0}
+                    max={100}
+                    value={comparePosition}
+                    aria-label="Before and after comparison slider"
+                    className="ba-slider"
+                    onChange={e => setComparePosition(Number(e.target.value))}
+                  />
                 </div>
-                <div className="ba-divider" style={{ left: `${comparePosition}%` }} aria-hidden="true" />
-                <div className="preview-badge">Before ({comparePosition}%) / After</div>
-                <input
-                  type="range"
-                  min={0}
-                  max={100}
-                  value={comparePosition}
-                  aria-label="Before and after comparison slider"
-                  className="ba-slider"
-                  onChange={e => setComparePosition(Number(e.target.value))}
-                />
-              </div>
+              ) : (
+                <div className="preview-stage-inner">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={showOriginalPreview ? sourceUrl : activeResultUrl || sourceUrl}
+                    alt="Selected image preview"
+                  />
+                  <div className="preview-badge">
+                    {previewWorking
+                      ? 'Updating live preview…'
+                      : showOriginalPreview
+                      ? 'Original source'
+                      : firstResult
+                      ? 'Processed result'
+                      : previewUrl
+                      ? 'Live result preview'
+                      : 'Source preview'}
+                  </div>
+                </div>
+              )
             ) : (
-              <div className="preview-stage-inner">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src={showOriginalPreview ? sourceUrl : activeResultUrl || sourceUrl}
-                  alt="Selected image preview"
-                />
-                {photoPreset && showFaceGuide && !options.a4Sheet ? (
-                  <svg
-                    className="passport-face-guide"
-                    viewBox="0 0 200 260"
-                    aria-hidden="true"
-                    focusable="false"
-                  >
-                    <line x1="100" y1="8" x2="100" y2="252" stroke="rgba(23,105,232,0.65)" strokeWidth="1.2" strokeDasharray="4 4" />
-                    <line x1="30" y1="30" x2="170" y2="30" stroke="rgba(23,105,232,0.75)" strokeWidth="1.2" strokeDasharray="3 3" />
-                    <text x="168" y="26" textAnchor="end" fill="#0d4fb8" fontSize="8" fontWeight="700">Crown top</text>
-                    <line x1="35" y1="106" x2="165" y2="106" stroke="rgba(14,159,110,0.75)" strokeWidth="1.2" strokeDasharray="3 3" />
-                    <text x="163" y="102" textAnchor="end" fill="#087451" fontSize="8" fontWeight="700">Eye line</text>
-                    <line x1="30" y1="184" x2="170" y2="184" stroke="rgba(23,105,232,0.75)" strokeWidth="1.2" strokeDasharray="3 3" />
-                    <text x="168" y="180" textAnchor="end" fill="#0d4fb8" fontSize="8" fontWeight="700">Chin line</text>
-                    <ellipse cx="100" cy="107" rx="48" ry="74" fill="none" stroke="rgba(23,105,232,0.85)" strokeWidth="1.8" strokeDasharray="5 3" />
-                    <path d="M 22 252 Q 100 198 178 252" fill="none" stroke="rgba(23,105,232,0.6)" strokeWidth="1.5" strokeDasharray="4 4" />
-                  </svg>
-                ) : null}
-                <div className="preview-badge">
-                  {previewWorking
-                    ? 'Updating live preview…'
-                    : showOriginalPreview
-                    ? 'Original source'
-                    : firstResult
-                    ? 'Processed result'
-                    : previewUrl
-                    ? 'Live result preview'
-                    : 'Source preview'}
-                </div>
+              <div
+                className="preview-empty large"
+                onClick={() => inputRef.current?.click()}
+                style={{ cursor: 'pointer' }}
+              >
+                <UploadCloud size={34} />
+                <b>
+                  {isDragging
+                    ? 'Drop image file now'
+                    : tool.workflow === 'signature-maker'
+                    ? 'Draw on the pad above or upload a signature'
+                    : 'Drag & drop or choose an image'}
+                </b>
+                <span>Preview and instant dimensions appear here immediately.</span>
               </div>
-            )
-          ) : (
-            <div
-              className="preview-empty large"
-              onClick={() => inputRef.current?.click()}
-              style={{ cursor: 'pointer' }}
-            >
-              <UploadCloud size={34} />
-              <b>
-                {isDragging
-                  ? 'Drop image file now'
-                  : tool.workflow === 'signature-maker'
-                  ? 'Draw or upload a signature'
-                  : 'Drag & drop or choose an image'}
-              </b>
-              <span>Preview and instant dimensions appear here immediately.</span>
-            </div>
-          )}
-        </div>
+            )}
+          </div>
+        )}
 
-        {photoPreset && sourceUrl && showFaceGuide && !options.a4Sheet ? (
+        {photoPreset && (sourceUrl || activeStageSource) && showFaceGuide ? (
           <small className="muted" style={{ display: 'block', marginTop: 6, fontSize: 11 }}>
-            Alignment overlay is a visual framing guide only (not an official biometric compliance check).
+            Visual aid only: head oval, eye line, crown/chin, and centre lines help frame your portrait (not an official biometric compliance check).
           </small>
         ) : null}
 
-        {sourceMeta && !firstResult ? (
+        {/* LiveCroppedPreview for signature-upload-crop */}
+        {tool.workflow === 'signature-trim' && previewUrl ? (
+          <div
+            style={{
+              marginTop: 10,
+              padding: '10px 12px',
+              borderRadius: 10,
+              border: '1px solid #e2e8f0',
+              background: '#f8fafc',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: 12,
+              flexWrap: 'wrap',
+            }}
+          >
+            <div>
+              <span className="eyebrow">Live Cropped Signature Preview</span>
+              <div style={{ fontSize: 12, color: '#334155', fontWeight: 600 }}>
+                {previewMeta ? `${previewMeta.width} × ${previewMeta.height} px · ~${formatBytes(previewMeta.size)}` : ''}
+              </div>
+            </div>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={previewUrl}
+              alt="Live cropped signature preview"
+              style={{
+                maxHeight: 54,
+                maxWidth: 220,
+                objectFit: 'contain',
+                background: 'repeating-conic-gradient(#e2e8f0 0% 25%, #ffffff 0% 50%) 50% / 12px 12px',
+                borderRadius: 6,
+                border: '1px solid #cbd5e1',
+                padding: 4,
+              }}
+            />
+          </div>
+        ) : null}
+
+        {/* Live Readout Bar for Passport / ID Photo Preset Tools */}
+        {photoPreset ? (
+          <div
+            className="result-summary"
+            role="status"
+            aria-live="polite"
+            aria-label="Live photo dimensions and size readout"
+            style={{ marginTop: 10 }}
+          >
+            <div>
+              <span>Pixel size</span>
+              <b>
+                {calculatedPixels.width} × {calculatedPixels.height} px
+              </b>
+            </div>
+            <div>
+              <span>Physical size</span>
+              <b>
+                {physicalReadout.wMm} × {physicalReadout.hMm} mm ({physicalReadout.wIn} × {physicalReadout.hIn} in)
+              </b>
+            </div>
+            <div>
+              <span>Print density</span>
+              <b>{physicalReadout.dpi} DPI</b>
+            </div>
+            <div>
+              <span>Estimated KB</span>
+              <b className="positive">
+                {firstResult
+                  ? formatBytes(firstResult.blob.size)
+                  : previewMeta
+                  ? `~${formatBytes(previewMeta.size)}`
+                  : Number(options.targetKb || 0) > 0
+                  ? `≤ ${options.targetKb} KB target`
+                  : 'Upload photo'}
+              </b>
+            </div>
+          </div>
+        ) : null}
+
+        {sourceMeta && !firstResult && !photoPreset ? (
           <div className="result-summary" role="status" aria-live="polite" aria-label="Source image details">
             <div>
               <span>Source dimensions</span>
@@ -1288,18 +1860,9 @@ export function ImageEditor({ tool }: { tool: ImageTool }) {
             </div>
             {previewMeta ? (
               <div>
-                <span>Est. live output</span>
+                <span>Live estimated size</span>
                 <b className="positive">
                   {previewMeta.width} × {previewMeta.height} px · ~{formatBytes(previewMeta.size)}
-                </b>
-              </div>
-            ) : photoPreset ? (
-              <div>
-                <span>Target output</span>
-                <b>
-                  {options.a4Sheet
-                    ? 'A4 Print Sheet'
-                    : `${calculatedPixels.width} × ${calculatedPixels.height} px`}
                 </b>
               </div>
             ) : null}
@@ -1343,7 +1906,7 @@ export function ImageEditor({ tool }: { tool: ImageTool }) {
                     ? 'Automatic'
                     : firstResult.targetReached
                     ? 'Reached'
-                    : 'Closest result'}
+                    : 'Closest achievable'}
                 </b>
               </div>
             ) : null}
@@ -1378,6 +1941,28 @@ export function ImageEditor({ tool }: { tool: ImageTool }) {
           </div>
         </div>
         <p className="muted small tool-control-summary">{tool.summary}</p>
+
+        {/* Mobile section tabs so controls are compact on smaller viewports */}
+        <div className="mobile-control-tabs" role="tablist" aria-label="Editor controls navigation">
+          <button
+            type="button"
+            role="tab"
+            aria-selected={mobileControlTab === 'options'}
+            className={`mobile-control-tab ${mobileControlTab === 'options' ? 'active' : ''}`}
+            onClick={() => setMobileControlTab('options')}
+          >
+            Adjust &amp; Controls
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={mobileControlTab === 'info'}
+            className={`mobile-control-tab ${mobileControlTab === 'info' ? 'active' : ''}`}
+            onClick={() => setMobileControlTab('info')}
+          >
+            Tips &amp; Info
+          </button>
+        </div>
 
         {tool.workflow === 'compress' ? (
           <div className="compress-controls">
@@ -1471,6 +2056,25 @@ export function ImageEditor({ tool }: { tool: ImageTool }) {
                 </button>
               ))}
             </div>
+            {tool.workflow === 'signature-compress' ? (
+              <div
+                className="calculated-size"
+                role="status"
+                aria-live="polite"
+                style={{ marginTop: 6, marginBottom: 8 }}
+              >
+                <span>Live estimated size</span>
+                <b className={previewMeta && previewMeta.size <= targetBytes ? 'positive' : ''}>
+                  {previewWorking
+                    ? 'Estimating…'
+                    : firstResult
+                    ? `${formatBytes(firstResult.blob.size)} (final)`
+                    : previewMeta
+                    ? `~${formatBytes(previewMeta.size)} (target ≤ ${targetValue} ${targetUnit})`
+                    : `Target ≤ ${targetValue} ${targetUnit}`}
+                </b>
+              </div>
+            ) : null}
           </>
         ) : null}
 
@@ -1532,6 +2136,60 @@ export function ImageEditor({ tool }: { tool: ImageTool }) {
 
         {physicalWorkflow ? (
           <>
+            {tool.workflow === 'signature-resize' ? (
+              <div className="field">
+                <label>Example portal presets (examples, verify your portal&apos;s rules)</label>
+                <div className="target-preset-row" style={{ marginBottom: 6 }}>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setRatio(6 / 2);
+                      setOptions(c => ({ ...c, unit: 'cm', physicalWidth: 6, physicalHeight: 2, dpi: 300 }));
+                    }}
+                  >
+                    6 × 2 cm (300 DPI)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setRatio(3.5 / 1.5);
+                      setOptions(c => ({ ...c, unit: 'cm', physicalWidth: 3.5, physicalHeight: 1.5, dpi: 200 }));
+                    }}
+                  >
+                    3.5 × 1.5 cm (200 DPI)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setRatio(140 / 60);
+                      setOptions(c => ({ ...c, unit: 'px', physicalWidth: 140, physicalHeight: 60 }));
+                    }}
+                  >
+                    140 × 60 px
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setRatio(300 / 100);
+                      setOptions(c => ({ ...c, unit: 'px', physicalWidth: 300, physicalHeight: 100 }));
+                    }}
+                  >
+                    300 × 100 px
+                  </button>
+                </div>
+                <small className="muted">
+                  These presets are examples only — always verify your specific portal&apos;s rules before uploading.
+                </small>
+              </div>
+            ) : null}
+            <label className="check">
+              <input
+                type="checkbox"
+                checked={lockAspect}
+                onChange={event => setLockAspect(event.target.checked)}
+              />
+              Lock aspect ratio
+            </label>
             <div className="field">
               <label htmlFor={`phys-unit-${tool.id}`}>Unit</label>
               {tool.workflow === 'resize-physical' ? (
@@ -1556,44 +2214,99 @@ export function ImageEditor({ tool }: { tool: ImageTool }) {
               )}
             </div>
             <div className="row">
-              {numberField('physicalWidth', 'Width', 0.01, 10000, 0.01)}
-              {numberField('physicalHeight', 'Height', 0.01, 10000, 0.01)}
+              <div className="field">
+                <label htmlFor={`field-${tool.id}-physicalWidth`}>Width</label>
+                <input
+                  id={`field-${tool.id}-physicalWidth`}
+                  aria-label="Width"
+                  type="number"
+                  min={0.01}
+                  max={10000}
+                  step={0.01}
+                  value={Number(options.physicalWidth ?? 0)}
+                  onChange={event => resizePhysicalWidth(Number(event.target.value))}
+                />
+              </div>
+              <div className="field">
+                <label htmlFor={`field-${tool.id}-physicalHeight`}>Height</label>
+                <input
+                  id={`field-${tool.id}-physicalHeight`}
+                  aria-label="Height"
+                  type="number"
+                  min={0.01}
+                  max={10000}
+                  step={0.01}
+                  value={Number(options.physicalHeight ?? 0)}
+                  onChange={event => resizePhysicalHeight(Number(event.target.value))}
+                />
+              </div>
             </div>
             {(options.unit || 'cm') !== 'px' ? numberField('dpi', 'DPI', 36, 1200, 1) : null}
-            <div className="calculated-size">
-              <span>Calculated output</span>
+            <div className="calculated-size" role="status" aria-live="polite">
+              <span>Live pixel readout</span>
               <b>
                 {calculatedPixels.width} × {calculatedPixels.height} px
+                {(options.unit || 'cm') !== 'px' ? ` (${options.dpi || 300} DPI)` : ''}
               </b>
             </div>
           </>
         ) : null}
 
-        {tool.workflow === 'crop' ? (
+        {tool.workflow === 'crop' || tool.workflow === 'signature-trim' ? (
           <>
-            <div className="field">
-              <label>Quick crop presets</label>
-              <div className="target-preset-row">
-                <button type="button" onClick={() => applyCropPreset('full')}>
-                  Full
-                </button>
-                <button type="button" onClick={() => applyCropPreset('center80')}>
-                  Center 80%
-                </button>
-                <button type="button" onClick={() => applyCropPreset(1)}>
-                  1:1 Square
-                </button>
-                <button type="button" onClick={() => applyCropPreset(3 / 4)}>
-                  3:4 Portrait
-                </button>
-                <button type="button" onClick={() => applyCropPreset(35 / 45)}>
-                  35:45 ID
-                </button>
-                <button type="button" onClick={() => applyCropPreset(16 / 9)}>
-                  16:9 Wide
-                </button>
+            {tool.workflow === 'signature-trim' ? (
+              <>
+                <label className="check">
+                  <input
+                    type="checkbox"
+                    checked={lockAspect}
+                    onChange={event => setLockAspect(event.target.checked)}
+                  />
+                  Lock crop aspect ratio
+                </label>
+                <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
+                  <button
+                    type="button"
+                    className="btn compact primary"
+                    onClick={handleAutoTrimSignature}
+                    disabled={!loadedImage && !padCanvasSource}
+                  >
+                    <Scissors size={14} /> Auto-Trim Ink Bounds
+                  </button>
+                  <button
+                    type="button"
+                    className="btn compact"
+                    onClick={() => applyCropPreset('full')}
+                  >
+                    Full Image
+                  </button>
+                </div>
+              </>
+            ) : (
+              <div className="field">
+                <label>Quick crop presets</label>
+                <div className="target-preset-row">
+                  <button type="button" onClick={() => applyCropPreset('full')}>
+                    Full
+                  </button>
+                  <button type="button" onClick={() => applyCropPreset('center80')}>
+                    Center 80%
+                  </button>
+                  <button type="button" onClick={() => applyCropPreset(1)}>
+                    1:1 Square
+                  </button>
+                  <button type="button" onClick={() => applyCropPreset(3 / 4)}>
+                    3:4 Portrait
+                  </button>
+                  <button type="button" onClick={() => applyCropPreset(35 / 45)}>
+                    35:45 ID
+                  </button>
+                  <button type="button" onClick={() => applyCropPreset(16 / 9)}>
+                    16:9 Wide
+                  </button>
+                </div>
               </div>
-            </div>
+            )}
             <div className="row">
               {numberField('cropX', 'X (px)', 0)}
               {numberField('cropY', 'Y (px)', 0)}
@@ -1602,6 +2315,14 @@ export function ImageEditor({ tool }: { tool: ImageTool }) {
               {numberField('cropWidth', 'Width (px)', 1)}
               {numberField('cropHeight', 'Height (px)', 1)}
             </div>
+            {tool.workflow === 'signature-trim' ? (
+              <>
+                {rangeField('trimMargin', 'Auto-trim padding (px)', 0, 100, 1)}
+                <small className="muted">
+                  Drag any of the 8 crop handles on the stage or click Auto-Trim Ink Bounds to snap tightly around your signature.
+                </small>
+              </>
+            ) : null}
           </>
         ) : null}
 
@@ -1626,7 +2347,7 @@ export function ImageEditor({ tool }: { tool: ImageTool }) {
                 <option value="5:4">5:4</option>
               </select>
             </div>
-            {rangeField('zoom', 'Zoom level', 1, 2.5, 0.05)}
+            {rangeField('zoom', 'Zoom level', 0.25, 2.5, 0.05)}
             {rangeField('anchorX', 'Horizontal position', 0, 1, 0.05)}
             {rangeField('anchorY', 'Vertical position', 0, 1, 0.05)}
           </>
@@ -1704,31 +2425,13 @@ export function ImageEditor({ tool }: { tool: ImageTool }) {
             </div>
             {numberField('dpi', 'DPI (Print & Portal Density)', 72, 1200, 1)}
             <div className="calculated-size">
-              <span>Single photo pixels</span>
+              <span>Single photo output</span>
               <b>
-                {calculatedPixels.width} × {calculatedPixels.height} px
+                {calculatedPixels.width} × {calculatedPixels.height} px · {physicalReadout.wMm} × {physicalReadout.hMm} mm
               </b>
             </div>
-            {rangeField('zoom', 'Zoom / Subject scale', 1, 2.5, 0.05)}
-            {rangeField('anchorX', 'Horizontal crop position', 0, 1, 0.05)}
-            {rangeField('anchorY', 'Vertical crop position', 0, 1, 0.05)}
-            <div className="row">
-              <div className="field">
-                <label htmlFor={`photo-rotate-${tool.id}`}>Rotate</label>
-                <select
-                  id={`photo-rotate-${tool.id}`}
-                  aria-label="Rotate"
-                  value={options.angle || 0}
-                  onChange={event => setOptions(current => ({ ...current, angle: Number(event.target.value) }))}
-                >
-                  <option value="0">0°</option>
-                  <option value="90">90° CW</option>
-                  <option value="180">180°</option>
-                  <option value="270">270° CW</option>
-                </select>
-              </div>
-              {numberField('targetKb', 'Target KB (0 = none)', 0, 2048, 5)}
-            </div>
+
+            {numberField('targetKb', 'Target KB (0 = none)', 0, 2048, 5)}
             <div className="target-preset-row" style={{ marginBottom: '8px' }}>
               <button type="button" onClick={() => setOptions(c => ({ ...c, targetKb: 0 }))}>
                 No limit
@@ -1746,8 +2449,48 @@ export function ImageEditor({ tool }: { tool: ImageTool }) {
                 200 KB
               </button>
             </div>
+
             {rangeField('brightness', 'Brightness (%)', 50, 150, 1)}
             {rangeField('contrast', 'Contrast (%)', 50, 150, 1)}
+
+            <div className="field">
+              <label htmlFor={`bg-color-${tool.id}`}>Background / Padding colour</label>
+              <div className="target-preset-row" style={{ marginBottom: '6px' }}>
+                {PHOTO_BG_PRESETS.map(p => (
+                  <button
+                    key={p.hex}
+                    type="button"
+                    onClick={() => setOptions(c => ({ ...c, backgroundColor: p.hex }))}
+                    style={{
+                      borderColor: (options.backgroundColor || '#ffffff').toLowerCase() === p.hex ? '#1769e8' : undefined,
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: 5,
+                    }}
+                  >
+                    <span
+                      style={{
+                        width: 12,
+                        height: 12,
+                        borderRadius: '50%',
+                        background: p.hex,
+                        border: '1px solid #94a3b8',
+                        display: 'inline-block',
+                      }}
+                    />
+                    {p.label}
+                  </button>
+                ))}
+              </div>
+              <input
+                id={`bg-color-${tool.id}`}
+                aria-label="Background colour"
+                type="color"
+                value={options.backgroundColor || '#ffffff'}
+                onChange={event => setOptions(current => ({ ...current, backgroundColor: event.target.value }))}
+              />
+            </div>
+
             <label className="check">
               <input
                 type="checkbox"
@@ -1756,49 +2499,53 @@ export function ImageEditor({ tool }: { tool: ImageTool }) {
                   setOptions(current => ({ ...current, replaceBackground: event.target.checked }))
                 }
               />
-              Replace plain edge-connected background (plain walls only)
+              Replace plain edge-connected background (plain backgrounds only)
             </label>
+            {edgeVarianceInfo?.highVariance ? (
+              <div
+                className="notice warning"
+                role="alert"
+                style={{ display: 'flex', alignItems: 'flex-start', gap: 8, marginTop: 4, marginBottom: 8 }}
+              >
+                <AlertTriangle size={16} style={{ flexShrink: 0, marginTop: 2 }} />
+                <span>
+                  High edge variance ({edgeVarianceInfo.variance}) detected on this photo&apos;s border. Background fill works cleanly on plain, evenly lit walls only.
+                </span>
+              </div>
+            ) : null}
             {options.replaceBackground ? (
               <>
-                <div className="field">
-                  <label htmlFor={`bg-color-${tool.id}`}>Background colour</label>
-                  <div className="target-preset-row" style={{ marginBottom: '6px' }}>
-                    <button type="button" onClick={() => setOptions(c => ({ ...c, backgroundColor: '#ffffff' }))}>
-                      White
-                    </button>
-                    <button type="button" onClick={() => setOptions(c => ({ ...c, backgroundColor: '#f1f5f9' }))}>
-                      Light Grey
-                    </button>
-                    <button type="button" onClick={() => setOptions(c => ({ ...c, backgroundColor: '#dbeafe' }))}>
-                      Light Blue
-                    </button>
-                  </div>
-                  <input
-                    id={`bg-color-${tool.id}`}
-                    aria-label="Background colour"
-                    type="color"
-                    value={options.backgroundColor || '#ffffff'}
-                    onChange={event => setOptions(current => ({ ...current, backgroundColor: event.target.value }))}
-                  />
-                </div>
                 {rangeField('amount', 'Background tolerance', 5, 220, 1)}
                 <small className="muted">
-                  Works on plain, evenly lit walls only. Busy, textured, or outdoor backgrounds cannot be cleanly separated.
+                  Plain backgrounds only: works best when photographed against a solid, evenly lit wall.
                 </small>
               </>
             ) : null}
+
             <label className="check">
               <input
                 type="checkbox"
                 checked={Boolean(options.a4Sheet)}
                 onChange={event => setOptions(current => ({ ...current, a4Sheet: event.target.checked }))}
               />
-              Generate printable A4 photo sheet (with cut guides)
+              Generate printable A4 photo sheet (with outside cut guides)
             </label>
             {options.a4Sheet ? (
               <>
                 <div className="field">
-                  <label htmlFor={`a4-count-${tool.id}`}>Photos on sheet</label>
+                  <div className="label-row" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <label htmlFor={`a4-count-${tool.id}`}>Photos on sheet</label>
+                    {a4Layout && a4Layout.maxFit > 0 ? (
+                      <button
+                        type="button"
+                        className="btn compact"
+                        onClick={() => setOptions(current => ({ ...current, a4Count: 0 }))}
+                        title={`Set count to maximum printable fit (${a4Layout.maxFit} photos)`}
+                      >
+                        <Grid size={13} /> Max fit ({a4Layout.maxFit})
+                      </button>
+                    ) : null}
+                  </div>
                   <select
                     id={`a4-count-${tool.id}`}
                     aria-label="Photos on sheet"
@@ -1809,13 +2556,62 @@ export function ImageEditor({ tool }: { tool: ImageTool }) {
                     <option value="6">6 photos</option>
                     <option value="8">8 photos</option>
                     <option value="12">12 photos</option>
-                    <option value="0">Max fit on A4</option>
+                    <option value="16">16 photos</option>
+                    <option value="24">24 photos</option>
+                    <option value="30">30 photos</option>
+                    <option value="36">36 photos</option>
+                    <option value="0">Max fit ({a4Layout?.maxFit || 'auto'} photos)</option>
                   </select>
                 </div>
                 <div className="row">
                   {numberField('a4MarginMm', 'Margin (mm)', 2, 30, 1)}
-                  {numberField('a4SpacingMm', 'Spacing (mm)', 1, 20, 1)}
+                  {numberField('a4SpacingMm', 'Gap / Spacing (mm)', 1, 20, 1)}
                 </div>
+
+                {/* Live A4 Sheet Grid Preview */}
+                {a4Layout ? (
+                  <div
+                    style={{
+                      display: 'flex',
+                      gap: 12,
+                      alignItems: 'center',
+                      padding: 10,
+                      borderRadius: 10,
+                      border: '1px solid #e2e8f0',
+                      background: '#f8fafc',
+                      marginBottom: 8,
+                    }}
+                  >
+                    <canvas
+                      ref={a4PreviewCanvasRef}
+                      aria-label="Live A4 sheet grid preview"
+                      style={{
+                        width: 70,
+                        height: 99,
+                        borderRadius: 4,
+                        boxShadow: '0 1px 4px rgba(15,23,42,0.12)',
+                        flexShrink: 0,
+                        background: '#ffffff',
+                      }}
+                    />
+                    <div style={{ fontSize: 12, lineHeight: 1.45, color: '#334155' }}>
+                      <div style={{ fontWeight: 700, color: '#0f172a', marginBottom: 2 }}>
+                        A4 Sheet Live Layout ({a4Layout.placed} photos)
+                      </div>
+                      <div>
+                        Grid: <b>{a4Layout.cols} × {a4Layout.rows}</b> (Max fit: {a4Layout.maxFit})
+                      </div>
+                      <div>
+                        Margin: <b>{options.a4MarginMm ?? 10} mm</b> · Gap: <b>{options.a4SpacingMm ?? 4} mm</b>
+                      </div>
+                      <div style={{ color: !a4Layout.hasOverlap && a4Layout.withinBounds ? '#15803d' : '#b91c1c', fontWeight: 600 }}>
+                        {!a4Layout.hasOverlap && a4Layout.withinBounds
+                          ? '✓ No tile overlap · Cut guides outside photo edges'
+                          : '⚠ Adjust photo size or margins to fit A4 sheet'}
+                      </div>
+                    </div>
+                  </div>
+                ) : null}
               </>
             ) : null}
             <small className="muted">
@@ -1830,18 +2626,141 @@ export function ImageEditor({ tool }: { tool: ImageTool }) {
             <small className="muted">Changes density metadata only; pixel dimensions remain unchanged.</small>
           </>
         ) : null}
-        {tool.workflow === 'signature-maker' || tool.workflow === 'signature-trim' ? (
+
+        {tool.workflow === 'signature-maker' ? (
           <>
-            {numberField('trimMargin', 'Trim margin (px)', 0, 200, 1)}
-            <small className="muted">Blank space is trimmed automatically around the visible signature.</small>
+            <div className="field">
+              <label>Export background</label>
+              <div className="target-preset-row">
+                <button
+                  type="button"
+                  onClick={() => setOptions(c => ({ ...c, transparentBackground: true }))}
+                  style={{ borderColor: options.transparentBackground !== false ? '#1769e8' : undefined }}
+                >
+                  Transparent PNG
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setOptions(c => ({ ...c, transparentBackground: false }))}
+                  style={{ borderColor: options.transparentBackground === false ? '#1769e8' : undefined }}
+                >
+                  White background
+                </button>
+              </div>
+            </div>
+            <label className="check">
+              <input
+                type="checkbox"
+                checked={options.autoTrim !== false}
+                onChange={event => setOptions(current => ({ ...current, autoTrim: event.target.checked }))}
+              />
+              Auto-trim blank whitespace around signature
+            </label>
+            {options.autoTrim !== false ? (
+              rangeField('trimMargin', 'Trim padding (px)', 0, 120, 1)
+            ) : null}
+            <label className="check">
+              <input
+                type="checkbox"
+                checked={Boolean(options.useCustomSize)}
+                onChange={event => setOptions(current => ({ ...current, useCustomSize: event.target.checked }))}
+              />
+              Set custom export size (px / cm / mm / in + DPI)
+            </label>
+            {options.useCustomSize ? (
+              <>
+                <div className="field">
+                  <label htmlFor={`sig-unit-${tool.id}`}>Unit</label>
+                  <select
+                    id={`sig-unit-${tool.id}`}
+                    aria-label="Signature size unit"
+                    value={options.unit || 'px'}
+                    onChange={event =>
+                      setOptions(current => ({ ...current, unit: event.target.value as PhysicalUnit }))
+                    }
+                  >
+                    <option value="px">Pixels (px)</option>
+                    <option value="cm">Centimetres (cm)</option>
+                    <option value="mm">Millimetres (mm)</option>
+                    <option value="in">Inches (in)</option>
+                  </select>
+                </div>
+                {(options.unit || 'px') === 'px' ? (
+                  <div className="row">
+                    {numberField('width', 'Width (px)', 16, 4096, 1)}
+                    {numberField('height', 'Height (px)', 16, 4096, 1)}
+                  </div>
+                ) : (
+                  <div className="row">
+                    {numberField('physicalWidth', `Width (${options.unit})`, 0.1, 500, 0.1)}
+                    {numberField('physicalHeight', `Height (${options.unit})`, 0.1, 500, 0.1)}
+                  </div>
+                )}
+                <div className="calculated-size">
+                  <span>Export dimensions</span>
+                  <b>
+                    {calculatedPixels.width} × {calculatedPixels.height} px ({options.dpi || 300} DPI)
+                  </b>
+                </div>
+              </>
+            ) : null}
+            {numberField('dpi', 'DPI metadata', 72, 1200, 1)}
           </>
         ) : null}
-        {tool.workflow === 'signature-remove-bg' ? (
+
+        {isSignatureBgTool ? (
           <>
-            {rangeField('amount', 'Background tolerance', 5, 220, 1)}
-            {numberField('trimMargin', 'Trim margin (px)', 0, 200, 1)}
+            {rangeField('amount', 'Paper threshold', 5, 220, 1)}
+            {rangeField('softness', 'Edge softness', 0, 100, 1)}
+            <label className="check">
+              <input
+                type="checkbox"
+                checked={Boolean(options.recolorInk)}
+                onChange={event => setOptions(current => ({ ...current, recolorInk: event.target.checked }))}
+              />
+              Recolor signature ink
+            </label>
+            {options.recolorInk ? (
+              <div className="field">
+                <label htmlFor={`sig-ink-color-${tool.id}`}>Target ink color</label>
+                <div className="target-preset-row" style={{ marginBottom: 6 }}>
+                  {SIGNATURE_INK_PRESETS.map(p => (
+                    <button
+                      key={p.hex}
+                      type="button"
+                      onClick={() => setOptions(c => ({ ...c, inkColor: p.hex }))}
+                      style={{
+                        borderColor: (options.inkColor || '#0f172a').toLowerCase() === p.hex ? '#1769e8' : undefined,
+                      }}
+                    >
+                      {p.label}
+                    </button>
+                  ))}
+                </div>
+                <input
+                  id={`sig-ink-color-${tool.id}`}
+                  aria-label="Target ink color"
+                  type="color"
+                  value={options.inkColor || '#0f172a'}
+                  onChange={event => setOptions(current => ({ ...current, inkColor: event.target.value }))}
+                />
+              </div>
+            ) : null}
+            <label className="check">
+              <input
+                type="checkbox"
+                checked={options.autoTrim !== false}
+                onChange={event => setOptions(current => ({ ...current, autoTrim: event.target.checked }))}
+              />
+              Auto-trim blank margins
+            </label>
+            {options.autoTrim !== false ? rangeField('trimMargin', 'Trim margin (px)', 0, 150, 1) : null}
+            <small className="muted">
+              Use the Eraser Brush or Restore Ink buttons on the stage toolbar above to touch up stamps, lines, or faint strokes with full Undo/Redo.
+            </small>
           </>
         ) : null}
+
         {tool.workflow === 'rotate' ? (
           <>
             <div className="field">
@@ -2080,7 +2999,14 @@ export function ImageEditor({ tool }: { tool: ImageTool }) {
         ) : null}
 
         {working ? (
-          <div className="progress" role="progressbar" aria-valuenow={progress} aria-valuemin={0} aria-valuemax={100} aria-label={`Processing ${progress}%`}>
+          <div
+            className="progress"
+            role="progressbar"
+            aria-valuenow={progress}
+            aria-valuemin={0}
+            aria-valuemax={100}
+            aria-label={`Processing ${progress}%`}
+          >
             <span style={{ width: `${progress}%` }} />
           </div>
         ) : null}
@@ -2137,7 +3063,7 @@ export function ImageEditor({ tool }: { tool: ImageTool }) {
                 <>
                   <button
                     type="button"
-                    className="btn success"
+                    className="btn success desktop-only-action"
                     onClick={() => downloadBlob(firstResult.blob, firstResult.name)}
                   >
                     <Download size={18} /> Download
@@ -2152,7 +3078,7 @@ export function ImageEditor({ tool }: { tool: ImageTool }) {
               ) : batchBlob ? (
                 <button
                   type="button"
-                  className="btn success"
+                  className="btn success desktop-only-action"
                   onClick={() => downloadBlob(batchBlob, `ajn-buzz-${tool.id}-${Date.now()}.zip`)}
                 >
                   <FileArchive size={18} /> Download {results.length} results
@@ -2182,43 +3108,65 @@ export function ImageEditor({ tool }: { tool: ImageTool }) {
         </div>
       </aside>
 
-      {/* Sticky mobile bottom action bar so Process / Download is always reachable */}
-      <div className="mobile-editor-action-bar" role="region" aria-label="Primary tool action">
+      {/* Sticky mobile bottom action bar: ONE primary action, single-line label, positioned above bottom nav */}
+      <div
+        className="mobile-editor-action-bar"
+        role="region"
+        aria-label="Primary tool action"
+        style={{ display: keyboardOpen ? 'none' : undefined }}
+      >
         {firstResult ? (
           results.length === 1 ? (
             <>
               <button
                 type="button"
-                className="btn success"
+                className="btn success primary-action-btn"
                 onClick={() => downloadBlob(firstResult.blob, firstResult.name)}
+                title={`Download ${firstResult.name}`}
               >
-                <Download size={17} /> Download ({formatBytes(firstResult.blob.size)})
+                <Download size={17} />
+                <span className="single-line-label">Download · {formatBytes(firstResult.blob.size)}</span>
               </button>
-              <button type="button" className="btn" onClick={processAnother}>
-                <RefreshCcw size={16} /> New
+              <button
+                type="button"
+                className="icon-button"
+                onClick={processAnother}
+                title="Process another image"
+                aria-label="Process another image"
+              >
+                <RefreshCcw size={16} />
               </button>
             </>
           ) : batchBlob ? (
             <>
               <button
                 type="button"
-                className="btn success"
+                className="btn success primary-action-btn"
                 onClick={() => downloadBlob(batchBlob, `ajn-buzz-${tool.id}-${Date.now()}.zip`)}
               >
-                <FileArchive size={17} /> Download ZIP ({results.length})
+                <FileArchive size={17} />
+                <span className="single-line-label">Download ZIP ({results.length})</span>
               </button>
-              <button type="button" className="btn" onClick={processAnother}>
-                <RefreshCcw size={16} /> New
+              <button
+                type="button"
+                className="icon-button"
+                onClick={processAnother}
+                title="Process another image"
+                aria-label="Process another image"
+              >
+                <RefreshCcw size={16} />
               </button>
             </>
           ) : null
         ) : working ? (
-          <button type="button" className="btn" onClick={() => cancelActiveJob(true)}>
-            <X size={17} /> Cancel ({progress}%)
+          <button type="button" className="btn primary-action-btn" onClick={() => cancelActiveJob(true)}>
+            <X size={17} />
+            <span className="single-line-label">Cancel ({progress}%)</span>
           </button>
         ) : (
-          <button type="button" className="btn primary" onClick={() => void run()}>
-            <Play size={17} /> {actionLabel}
+          <button type="button" className="btn primary primary-action-btn" onClick={() => void run()}>
+            <Play size={17} />
+            <span className="single-line-label">{actionLabel}</span>
           </button>
         )}
       </div>

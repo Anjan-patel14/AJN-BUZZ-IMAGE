@@ -2,7 +2,6 @@ import './scripts/eslint-loader.mjs';
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  output: 'standalone',
   allowedDevOrigins: ['*.run.app', 'localhost:3000', '127.0.0.1:3000'],
   outputFileTracingRoot: process.cwd(),
   poweredByHeader: false,

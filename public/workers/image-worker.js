@@ -104,11 +104,11 @@ function parseHexRgb(hex) {
   return [(num >> 16) & 255, (num >> 8) & 255, num & 255];
 }
 
-function removeEdgeConnectedBackground(ctx, width, height, tolerance = 38, replacementHex = null) {
+function removeEdgeConnectedBackground(ctx, width, height, tolerance = 38, replacementHex = null, softness = 28) {
   const image = ctx.getImageData(0, 0, width, height);
   const d = image.data;
   const total = width * height;
-  if (total <= 0) return { busyBackground: false };
+  if (total <= 0) return { busyBackground: false, variance: 0 };
 
   const samples = [];
   const pushSample = (x, y) => {
@@ -192,24 +192,27 @@ function removeEdgeConnectedBackground(ctx, width, height, tolerance = 38, repla
     }
   }
 
-  // Soft 1px boundary feathering to prevent harsh jagged halos
-  const softDist = maxDist * 1.28;
-  for (let y = 1; y < height - 1; y++) {
-    for (let x = 1; x < width - 1; x++) {
-      const p = y * width + x;
-      if (visited[p]) continue;
-      const touchesBg = visited[p - 1] || visited[p + 1] || visited[p - width] || visited[p + width];
-      if (!touchesBg) continue;
-      const i = p * 4;
-      const dist = Math.hypot(d[i] - bgR, d[i + 1] - bgG, d[i + 2] - bgB);
-      if (dist < softDist) {
-        const ratio = clamp((dist - maxDist * 0.6) / Math.max(1, softDist - maxDist * 0.6), 0.25, 0.9);
-        if (fillRgb) {
-          d[i] = Math.round(d[i] * ratio + fillRgb[0] * (1 - ratio));
-          d[i + 1] = Math.round(d[i + 1] * ratio + fillRgb[1] * (1 - ratio));
-          d[i + 2] = Math.round(d[i + 2] * ratio + fillRgb[2] * (1 - ratio));
-        } else {
-          d[i + 3] = Math.round(d[i + 3] * ratio);
+  // Soft boundary feathering controlled by softness (0..100)
+  const softFactor = 1 + clamp(softness, 0, 100) / 120;
+  const softDist = maxDist * softFactor;
+  if (softness > 0) {
+    for (let y = 1; y < height - 1; y++) {
+      for (let x = 1; x < width - 1; x++) {
+        const p = y * width + x;
+        if (visited[p]) continue;
+        const touchesBg = visited[p - 1] || visited[p + 1] || visited[p - width] || visited[p + width];
+        if (!touchesBg) continue;
+        const i = p * 4;
+        const dist = Math.hypot(d[i] - bgR, d[i + 1] - bgG, d[i + 2] - bgB);
+        if (dist < softDist) {
+          const ratio = clamp((dist - maxDist * 0.55) / Math.max(1, softDist - maxDist * 0.55), 0.15, 0.95);
+          if (fillRgb) {
+            d[i] = Math.round(d[i] * ratio + fillRgb[0] * (1 - ratio));
+            d[i + 1] = Math.round(d[i + 1] * ratio + fillRgb[1] * (1 - ratio));
+            d[i + 2] = Math.round(d[i + 2] * ratio + fillRgb[2] * (1 - ratio));
+          } else {
+            d[i + 3] = Math.round(d[i + 3] * ratio);
+          }
         }
       }
     }
@@ -217,7 +220,91 @@ function removeEdgeConnectedBackground(ctx, width, height, tolerance = 38, repla
 
   ctx.putImageData(image, 0, 0);
   const replacedRatio = tail / Math.max(1, total);
-  return { busyBackground: variance > 42 || replacedRatio < 0.04 };
+  return { busyBackground: variance > 42 || replacedRatio < 0.04, variance };
+}
+
+function drawTransformedInWorker(ctx, image, sourceW, sourceH, targetW, targetH, transform, mode = 'cover') {
+  const scaleX = targetW / Math.max(1, sourceW);
+  const scaleY = targetH / Math.max(1, sourceH);
+  const baseScale = mode === 'cover' ? Math.max(scaleX, scaleY) : Math.min(scaleX, scaleY);
+  const totalScale = baseScale * clamp(transform.scale ?? 1, 0.25, 5);
+  const cx = targetW / 2 + (transform.x ?? 0) * targetW;
+  const cy = targetH / 2 + (transform.y ?? 0) * targetH;
+
+  ctx.save();
+  ctx.translate(cx, cy);
+  if (transform.rotation) {
+    ctx.rotate((transform.rotation * Math.PI) / 180);
+  }
+  ctx.scale(transform.flipX ? -totalScale : totalScale, totalScale);
+  ctx.drawImage(image, -sourceW / 2, -sourceH / 2, sourceW, sourceH);
+  ctx.restore();
+}
+
+function buildA4SheetInWorker(tile, dpi, requestedCount, marginMm, spacingMm) {
+  const maxSafeA4Dpi = Math.floor(Math.sqrt(MAX_CANVAS_PIXELS / ((210 / 25.4) * (297 / 25.4))));
+  const sheetDpi = clamp(dpi, 72, Math.min(600, maxSafeA4Dpi));
+  const dpiScale = sheetDpi / Math.max(1, dpi);
+
+  const sheetW = pixelsFromPhysical(210, 'mm', sheetDpi);
+  const sheetH = pixelsFromPhysical(297, 'mm', sheetDpi);
+  const marginPx = Math.max(0, Math.round((clamp(marginMm, 0, 40) / 25.4) * sheetDpi));
+  const gapPx = Math.max(0, Math.round((clamp(spacingMm, 0, 30) / 25.4) * sheetDpi));
+
+  const tileW = Math.max(1, Math.round(tile.width * dpiScale));
+  const tileH = Math.max(1, Math.round(tile.height * dpiScale));
+  const usableW = Math.max(1, sheetW - marginPx * 2);
+  const usableH = Math.max(1, sheetH - marginPx * 2);
+
+  if (tileW > usableW || tileH > usableH) {
+    throw new Error('Single photo dimensions exceed the printable A4 area. Reduce the photo dimensions or sheet margin.');
+  }
+
+  const cols = Math.floor((usableW + gapPx) / (tileW + gapPx));
+  const rows = Math.floor((usableH + gapPx) / (tileH + gapPx));
+  if (cols < 1 || rows < 1) {
+    throw new Error('Photo dimensions are too large to fit on an A4 sheet with the current margin.');
+  }
+
+  const maxFit = cols * rows;
+  const count = requestedCount <= 0 ? maxFit : Math.min(requestedCount, maxFit);
+
+  const { canvas: sheet } = makeCanvas(sheetW, sheetH);
+  const ctx = sheet.getContext('2d');
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(0, 0, sheetW, sheetH);
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = 'high';
+
+  const usedCols = Math.min(cols, count);
+  const usedRows = Math.ceil(count / usedCols);
+  const totalGridW = usedCols * tileW + Math.max(0, usedCols - 1) * gapPx;
+  const startX = Math.max(marginPx, Math.round((sheetW - totalGridW) / 2));
+  const startY = marginPx;
+
+  let placed = 0;
+  const strokeWidth = Math.max(1, Math.round(sheetDpi / 300));
+  const halfStroke = strokeWidth / 2;
+  ctx.strokeStyle = '#cbd5e1';
+  ctx.lineWidth = strokeWidth;
+
+  for (let r = 0; r < usedRows && placed < count; r++) {
+    for (let c = 0; c < usedCols && placed < count; c++) {
+      const x = startX + c * (tileW + gapPx);
+      const y = startY + r * (tileH + gapPx);
+      // Draw cut guides strictly OUTSIDE the photo edge so photo pixels are never painted over
+      ctx.strokeRect(
+        x - halfStroke,
+        y - halfStroke,
+        tileW + strokeWidth,
+        tileH + strokeWidth
+      );
+      ctx.drawImage(tile, 0, 0, tile.width, tile.height, x, y, tileW, tileH);
+      placed++;
+    }
+  }
+
+  return { sheet, placed, cols: usedCols, rows: usedRows, sheetDpi };
 }
 
 self.onmessage = async (event) => {
@@ -330,14 +417,161 @@ self.onmessage = async (event) => {
       return;
     }
 
+    if (action === 'photo-preset') {
+      const { file, options, preset } = payload;
+      const bitmap = await createImageBitmap(file, { imageOrientation: 'from-image' });
+      let bgCanvas = null;
+      let tileCanvas = null;
+      let sheetCanvas = null;
+      try {
+        self.postMessage({ id, progress: 15 });
+        const dpi = clamp(Math.round(options.dpi || preset.dpi || 300), 36, 1200);
+        const unit = options.unit || preset.unit || 'mm';
+        const pWidth = Number(options.physicalWidth || preset.width || 35);
+        const pHeight = Number(options.physicalHeight || preset.height || 45);
+        const requestedW = pixelsFromPhysical(pWidth, unit, dpi);
+        const requestedH = pixelsFromPhysical(pHeight, unit, dpi);
+        const safeTile = fitToSafeCanvas(requestedW, requestedH);
+        const width = safeTile.width;
+        const height = safeTile.height;
+        const format = options.format || 'image/jpeg';
+        const quality = options.quality ?? 0.92;
+
+        let workSource = bitmap;
+        let workW = bitmap.width;
+        let workH = bitmap.height;
+        let busyBgWarning = '';
+
+        if (options.replaceBackground) {
+          self.postMessage({ id, progress: 35 });
+          const bgSafe = fitToSafeCanvas(workW, workH);
+          bgCanvas = new OffscreenCanvas(bgSafe.width, bgSafe.height);
+          const bgCtx = bgCanvas.getContext('2d');
+          bgCtx.drawImage(workSource, 0, 0, bgSafe.width, bgSafe.height);
+          const { busyBackground } = removeEdgeConnectedBackground(
+            bgCtx,
+            bgSafe.width,
+            bgSafe.height,
+            options.amount ?? 38,
+            options.backgroundColor || '#ffffff',
+            28
+          );
+          if (busyBackground) {
+            busyBgWarning = ' Note: Original background looks busy or uneven; background fill works best on plain, evenly lit walls.';
+          }
+          workSource = bgCanvas;
+          workW = bgSafe.width;
+          workH = bgSafe.height;
+        }
+
+        self.postMessage({ id, progress: 55 });
+        tileCanvas = new OffscreenCanvas(width, height);
+        const ctx = tileCanvas.getContext('2d');
+        ctx.imageSmoothingEnabled = true;
+        ctx.imageSmoothingQuality = 'high';
+        ctx.fillStyle = options.backgroundColor || '#ffffff';
+        ctx.fillRect(0, 0, width, height);
+
+        const b = options.brightness ?? 100;
+        const c = options.contrast ?? 100;
+        if (b !== 100 || c !== 100) {
+          ctx.filter = `brightness(${b}%) contrast(${c}%)`;
+        }
+
+        const transform = options.stageTransform || {
+          x: 0,
+          y: 0,
+          scale: clamp(options.zoom ?? 1, 0.25, 5),
+          rotation: options.angle ?? 0,
+          flipX: options.flip === 'horizontal',
+        };
+        drawTransformedInWorker(ctx, workSource, workW, workH, width, height, transform, 'cover');
+        ctx.filter = 'none';
+
+        if (options.a4Sheet) {
+          self.postMessage({ id, progress: 75 });
+          const { sheet, placed, cols, rows, sheetDpi } = buildA4SheetInWorker(
+            tileCanvas,
+            dpi,
+            options.a4Count ?? 8,
+            options.a4MarginMm ?? 10,
+            options.a4SpacingMm ?? 4
+          );
+          sheetCanvas = sheet;
+          const rawSheet = await canvasBlob(sheetCanvas, format, quality);
+          self.postMessage({ id, progress: 95 });
+          self.postMessage({
+            id,
+            ok: true,
+            result: {
+              blob: rawSheet,
+              width: sheetCanvas.width,
+              height: sheetCanvas.height,
+              type: format,
+              dpi: sheetDpi,
+              note: `A4 print sheet ready: ${placed} photos (${cols} × ${rows} grid, each ${pWidth} × ${pHeight} ${unit}) on 210 × 297 mm at ${sheetDpi} DPI.${busyBgWarning}`,
+            },
+          });
+          return;
+        }
+
+        const targetKb = Number(options.targetKb || 0);
+        if (targetKb > 0 && format !== 'image/png') {
+          const targetBytes = Math.max(2048, Math.round(targetKb * 1024));
+          const searchBudget = Math.max(1024, targetBytes - 32);
+          const candidate = await bestLossyAtSize(tileCanvas, format, searchBudget, (step, total) => {
+            self.postMessage({ id, progress: 60 + Math.round((step / total) * 35) });
+          });
+          self.postMessage({
+            id,
+            ok: true,
+            result: {
+              blob: candidate.blob,
+              width,
+              height,
+              type: format,
+              dpi,
+              targetBytes,
+              targetReached: candidate.reached,
+              busyBgWarning,
+              pWidth,
+              pHeight,
+              unit,
+            },
+          });
+          return;
+        }
+
+        const raw = await canvasBlob(tileCanvas, format, quality);
+        self.postMessage({
+          id,
+          ok: true,
+          result: {
+            blob: raw,
+            width,
+            height,
+            type: format,
+            dpi,
+            note: `${pWidth} × ${pHeight} ${unit} (${width} × ${height} px at ${dpi} DPI).${busyBgWarning}`,
+          },
+        });
+      } finally {
+        releaseCanvas(bgCanvas);
+        releaseCanvas(tileCanvas);
+        releaseCanvas(sheetCanvas);
+        bitmap.close();
+      }
+      return;
+    }
+
     if (action === 'remove-bg') {
-      const { file, tolerance, replacementHex } = payload;
+      const { file, tolerance, replacementHex, softness } = payload;
       const bitmap = await createImageBitmap(file, { imageOrientation: 'from-image' });
       try {
         const { canvas, width, height } = makeCanvas(bitmap.width, bitmap.height);
         const ctx = canvas.getContext('2d');
         ctx.drawImage(bitmap, 0, 0, width, height);
-        const { busyBackground } = removeEdgeConnectedBackground(ctx, width, height, tolerance, replacementHex);
+        const { busyBackground } = removeEdgeConnectedBackground(ctx, width, height, tolerance, replacementHex, softness ?? 28);
         const blob = await canvas.convertToBlob({ type: 'image/png' });
         releaseCanvas(canvas);
         self.postMessage({ id, ok: true, result: { blob, width, height, busyBackground } });

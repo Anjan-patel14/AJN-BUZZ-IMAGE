@@ -186,7 +186,14 @@ export default async function ToolPage({ params }: { params: Promise<{ slug: str
             </div>
             <div className="tool-image-preview">
               {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={`/seo-tools/${tool.id}.svg`} alt={`${tool.name} online tool preview`} width="1200" height="675" loading="lazy" />
+              <img
+                src={`/seo-tools/${tool.id}.svg`}
+                alt={`${tool.name} online tool preview`}
+                width="1200"
+                height="675"
+                loading="lazy"
+                style={{ maxWidth: '100%', width: '100%', height: 'auto', display: 'block' }}
+              />
               <span><ImageIcon size={14} /> Tool preview</span>
             </div>
           </div>

@@ -1,6 +1,6 @@
 {
-  "serverUrl": "http://127.0.0.1:3000",
-  "timestamp": "2026-10-31T07:57:34.468Z",
+  "serverUrl": "http://127.0.0.1:3008",
+  "timestamp": "2026-10-31T16:04:00.454Z",
   "viewportChecks": [
     {
       "viewport": "320px",
@@ -441,10 +441,10 @@
     {
       "profile": "mobile",
       "route": "/",
-      "loadWallMs": 1350,
-      "ttfbMs": 8,
-      "domContentLoadedMs": 129,
-      "fcpMs": 316,
+      "loadWallMs": 1536,
+      "ttfbMs": 13,
+      "domContentLoadedMs": 170,
+      "fcpMs": 384,
       "cls": 0,
       "jszipLoadedOnInit": false,
       "workerLoadedOnInit": false
@@ -452,10 +452,10 @@
     {
       "profile": "mobile",
       "route": "/passport-photo-maker",
-      "loadWallMs": 1228,
-      "ttfbMs": 6,
-      "domContentLoadedMs": 310,
-      "fcpMs": 324,
+      "loadWallMs": 1670,
+      "ttfbMs": 8,
+      "domContentLoadedMs": 164,
+      "fcpMs": 424,
       "cls": 0,
       "jszipLoadedOnInit": false,
       "workerLoadedOnInit": false
@@ -463,10 +463,10 @@
     {
       "profile": "mobile",
       "route": "/compress-to-kb",
-      "loadWallMs": 1287,
-      "ttfbMs": 5,
-      "domContentLoadedMs": 326,
-      "fcpMs": 268,
+      "loadWallMs": 1489,
+      "ttfbMs": 6,
+      "domContentLoadedMs": 402,
+      "fcpMs": 332,
       "cls": 0,
       "jszipLoadedOnInit": false,
       "workerLoadedOnInit": false
@@ -474,31 +474,9 @@
     {
       "profile": "mobile",
       "route": "/signature-maker",
-      "loadWallMs": 1253,
-      "ttfbMs": 5,
-      "domContentLoadedMs": 320,
-      "fcpMs": 268,
-      "cls": 0,
-      "jszipLoadedOnInit": false,
-      "workerLoadedOnInit": false
-    },
-    {
-      "profile": "desktop",
-      "route": "/",
-      "loadWallMs": 1528,
-      "ttfbMs": 8,
-      "domContentLoadedMs": 123,
-      "fcpMs": 476,
-      "cls": 0,
-      "jszipLoadedOnInit": false,
-      "workerLoadedOnInit": false
-    },
-    {
-      "profile": "desktop",
-      "route": "/passport-photo-maker",
-      "loadWallMs": 1331,
+      "loadWallMs": 1651,
       "ttfbMs": 6,
-      "domContentLoadedMs": 356,
+      "domContentLoadedMs": 426,
       "fcpMs": 352,
       "cls": 0,
       "jszipLoadedOnInit": false,
@@ -506,11 +484,33 @@
     },
     {
       "profile": "desktop",
+      "route": "/",
+      "loadWallMs": 1606,
+      "ttfbMs": 10,
+      "domContentLoadedMs": 153,
+      "fcpMs": 496,
+      "cls": 0,
+      "jszipLoadedOnInit": false,
+      "workerLoadedOnInit": false
+    },
+    {
+      "profile": "desktop",
+      "route": "/passport-photo-maker",
+      "loadWallMs": 1387,
+      "ttfbMs": 6,
+      "domContentLoadedMs": 147,
+      "fcpMs": 400,
+      "cls": 0,
+      "jszipLoadedOnInit": false,
+      "workerLoadedOnInit": false
+    },
+    {
+      "profile": "desktop",
       "route": "/compress-to-kb",
-      "loadWallMs": 1390,
-      "ttfbMs": 8,
-      "domContentLoadedMs": 346,
-      "fcpMs": 336,
+      "loadWallMs": 1450,
+      "ttfbMs": 6,
+      "domContentLoadedMs": 139,
+      "fcpMs": 388,
       "cls": 0,
       "jszipLoadedOnInit": false,
       "workerLoadedOnInit": false
@@ -518,10 +518,10 @@
     {
       "profile": "desktop",
       "route": "/signature-maker",
-      "loadWallMs": 1398,
-      "ttfbMs": 5,
-      "domContentLoadedMs": 390,
-      "fcpMs": 420,
+      "loadWallMs": 1605,
+      "ttfbMs": 7,
+      "domContentLoadedMs": 399,
+      "fcpMs": 436,
       "cls": 0,
       "jszipLoadedOnInit": false,
       "workerLoadedOnInit": false
