@@ -31,9 +31,29 @@ export function toggleFavorite(id: ToolId) {
   write(FAVORITES_KEY, current.includes(id) ? current.filter(value => value !== id) : [id, ...current].slice(0, 40));
 }
 
-export function recentTools(): ToolId[] { return read<ToolId[]>(RECENT_KEY, []); }
+const MAX_RECENT_TOOLS = 10;
+
+export function cleanupRecentTools(maxItems = MAX_RECENT_TOOLS): ToolId[] {
+  const stored = read<unknown>(RECENT_KEY, []);
+  if (!Array.isArray(stored)) return [];
+  const valid = stored.filter((item): item is ToolId => typeof item === 'string' && item.length > 0);
+  const deduped = Array.from(new Set(valid));
+  if (deduped.length > maxItems || deduped.length !== stored.length) {
+    const trimmed = deduped.slice(0, maxItems);
+    if (typeof window !== 'undefined') {
+      try {
+        localStorage.setItem(RECENT_KEY, JSON.stringify(trimmed));
+      } catch {}
+    }
+    return trimmed;
+  }
+  return deduped;
+}
+
+export function recentTools(): ToolId[] { return cleanupRecentTools(MAX_RECENT_TOOLS); }
 export function markRecentTool(id: ToolId) {
-  write(RECENT_KEY, [id, ...recentTools().filter(value => value !== id)].slice(0, 12));
+  const cleaned = cleanupRecentTools(MAX_RECENT_TOOLS);
+  write(RECENT_KEY, [id, ...cleaned.filter(value => value !== id)].slice(0, MAX_RECENT_TOOLS));
 }
 
 export function savedPresets(): SavedPreset[] { return read<SavedPreset[]>(PRESETS_KEY, []); }

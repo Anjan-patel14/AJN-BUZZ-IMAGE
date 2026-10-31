@@ -2,7 +2,7 @@
 import { useEffect } from 'react';
 import { usePathname } from 'next/navigation';
 import { IMAGE_TOOLS } from '@/lib/image-tools';
-import { ADSENSE_CLIENT } from '@/lib/ads';
+import { ADSENSE_CLIENT, isAdsEnabled } from '@/lib/ads';
 
 const SCRIPT_ID = 'ajn-buzz-adsense-script';
 export const ADS_READY_EVENT = 'ajn-buzz-adsense-ready';
@@ -13,14 +13,18 @@ export function AdSenseScriptLoader() {
   const pathname = usePathname();
   useEffect(() => {
     const sync = () => {
-      const existing = document.getElementById(SCRIPT_ID);
+      const existingById = document.getElementById(SCRIPT_ID);
+      const existingHead = document.querySelector('script[src*="pagead2.googlesyndication.com/pagead/js/adsbygoogle.js"]');
+      if (existingById || existingHead) {
+        window.dispatchEvent(new Event(ADS_READY_EVENT));
+        return;
+      }
       const client = process.env.NEXT_PUBLIC_ADSENSE_CLIENT || ADSENSE_CLIENT;
       const host = window.location.hostname.toLowerCase();
       const productionHost = host === 'ajn.buzz' || host === 'www.ajn.buzz';
       const consent = localStorage.getItem('ajn_buzz_cookie_consent') === 'accepted';
-      const allowed = process.env.NODE_ENV === 'production' && process.env.NEXT_PUBLIC_ADS_ENABLED === 'true' && productionHost && consent && Boolean(client) && isBuzzAdEligiblePath(pathname);
-      if (!allowed) { existing?.remove(); return; }
-      if (existing) { window.dispatchEvent(new Event(ADS_READY_EVENT)); return; }
+      const allowed = process.env.NODE_ENV === 'production' && isAdsEnabled() && productionHost && consent && Boolean(client) && isBuzzAdEligiblePath(pathname);
+      if (!allowed) return;
       const script = document.createElement('script');
       script.id = SCRIPT_ID; script.async = true; script.crossOrigin = 'anonymous';
       script.src = `https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=${encodeURIComponent(client)}`;

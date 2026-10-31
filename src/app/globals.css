@@ -172,7 +172,7 @@ code,pre,kbd,.table{font-family:var(--font-jetbrains-mono),"JetBrains Mono",mono
 .error{border-radius:11px!important}.notice{border-radius:11px!important}.privacy-note{padding:10px!important}.privacy-note span{font-size:9.5px!important}
 @media (max-width:860px){.task-hero{padding-top:78px!important}.tools-index-page,.tool-page{padding-top:78px!important}.tool-seo-card{grid-template-columns:1fr!important}.editor-main,.editor-controls{padding:13px!important}}
 @media (max-width:520px){.task-hero{padding:76px 12px 14px!important}.task-hero h1{font-size:2rem!important}.task-hero .lead{font-size:12px!important}.task-hero .hero-actions{display:grid!important;grid-template-columns:1fr 1fr!important;gap:8px!important}.task-hero .hero-actions .btn{width:auto!important;min-height:42px!important;padding:0 10px!important}.hero-proof{margin-top:10px!important}.tools-home{padding-top:8px!important}.catalog-surface{padding:11px!important}.catalog-toolbar{padding:8px!important}.tool-grid{grid-template-columns:repeat(2,minmax(0,1fr))!important;gap:9px!important}.tool-card{min-height:150px!important}.tool-card-link{padding:12px!important}.tool-card .tool-icon{width:44px!important;height:44px!important;border-radius:12px!important}.tool-card h3{font-size:13px!important;padding-right:22px}.tool-card p{font-size:9.5px!important;-webkit-line-clamp:2}.favorite-button{width:30px!important;height:30px!important}.compact-tool-hero{gap:12px!important}.compact-tool-hero .tool-title{font-size:1.9rem!important}.tool-summary{font-size:11px!important}.compare-stage{min-height:250px!important}.target-preset-row{gap:5px}.target-preset-row button{flex:1 0 auto}.tool-seo-card{padding:14px!important;margin-top:14px!important}.pdf-shortcut-grid{grid-template-columns:repeat(2,minmax(0,1fr))!important;gap:9px!important}.pdf-shortcut-card{grid-template-columns:auto minmax(0,1fr)!important;min-height:78px!important}.pdf-shortcut-card .pdf-external{display:none}.pdf-shortcut-copy b{font-size:11.5px!important}}
-@media (max-width:360px){.tool-grid,.pdf-shortcut-grid{grid-template-columns:1fr!important}.task-hero .hero-actions{grid-template-columns:1fr!important}}
+@media (max-width:360px){.tool-grid{grid-template-columns:repeat(2,minmax(0,1fr))!important;gap:8px!important}.pdf-shortcut-grid{grid-template-columns:1fr!important}.task-hero .hero-actions{grid-template-columns:1fr!important}}
 
 
 /* === AJN BUZZ V6.1 PHOTO + SIGNATURE WORKSPACES === */
@@ -464,3 +464,633 @@ a:focus-visible, button:focus-visible, input:focus-visible, select:focus-visible
   outline: 3px solid rgba(23, 105, 232, 0.35) !important;
   outline-offset: 2px !important;
 }
+
+/* Pro Tip Box in ImageEditor */
+.pro-tip-box {
+  margin-top: 12px;
+  padding: 12px 14px;
+  border: 1px solid #cfe0fb;
+  border-radius: 14px;
+  background: linear-gradient(180deg, #f5f9ff 0%, #edf4ff 100%);
+  color: #1e3a5f;
+}
+.pro-tip-head {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 11px;
+  color: var(--ajn-blue);
+  margin-bottom: 4px;
+}
+.pro-tip-head b {
+  font-weight: 850;
+  color: #143666;
+}
+.pro-tip-box p {
+  margin: 0;
+  font-size: 11px;
+  line-height: 1.55;
+  color: #3b526f;
+}
+
+/* Tool SEO Guides, Spec Tables & Troubleshooting */
+.tool-seo-copy h3 {
+  font-size: 14px;
+  font-weight: 850;
+  margin: 16px 0 8px;
+  color: #14243a;
+}
+.tool-guide-list {
+  margin: 0;
+  padding-left: 19px;
+}
+.tool-guide-list li {
+  font-size: 12px;
+  line-height: 1.7;
+  color: #65768d;
+}
+.tool-spec-table-wrap {
+  margin-top: 14px;
+  overflow-x: auto;
+}
+.tool-spec-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 11px;
+  background: #f8fafc;
+  border: 1px solid #dce6f0;
+  border-radius: 12px;
+  overflow: hidden;
+}
+.tool-spec-table th, .tool-spec-table td {
+  padding: 9px 11px;
+  text-align: left;
+  border-bottom: 1px solid #e2eaf3;
+}
+.tool-spec-table th {
+  background: #edf5ff;
+  color: #173d68;
+  font-weight: 850;
+}
+.tool-troubleshooting {
+  display: grid;
+  gap: 8px;
+}
+.troubleshooting-item {
+  padding: 10px 12px;
+  border: 1px solid #e1eaf3;
+  border-radius: 12px;
+  background: #f9fbfe;
+}
+.troubleshooting-item b {
+  display: block;
+  font-size: 11.5px;
+  color: #1b324e;
+  margin-bottom: 3px;
+}
+.troubleshooting-item p {
+  margin: 0 !important;
+  font-size: 11px !important;
+  color: #56687f !important;
+}
+
+/* Compact Above-the-Fold Homepage & Mobile Tool Grid */
+.tools-home-section {
+  padding-top: 18px !important;
+  padding-bottom: 36px !important;
+}
+.home-mobile-intro {
+  margin-bottom: 12px;
+  text-align: center;
+}
+.home-mobile-intro h1 {
+  font-size: clamp(22px, 4.2vw, 38px);
+  line-height: 1.08;
+  margin: 0 0 6px;
+  letter-spacing: -0.04em;
+}
+.home-mobile-intro .lead {
+  font-size: 13px;
+  max-width: 640px;
+  margin: 0 auto;
+  line-height: 1.45;
+  color: #5b6b80;
+}
+.catalog-toolbar {
+  margin: 0 0 14px !important;
+}
+
+@media (max-width: 760px) {
+  .tools-home-section {
+    padding-top: 10px !important;
+    padding-bottom: 24px !important;
+  }
+  .home-mobile-intro {
+    margin-bottom: 8px;
+    text-align: left;
+  }
+  .home-mobile-intro h1 {
+    font-size: clamp(19px, 5.2vw, 24px);
+    margin: 0 0 3px;
+  }
+  .home-mobile-intro .lead {
+    font-size: 11.5px;
+    margin: 0;
+  }
+  .catalog-surface {
+    padding: 10px !important;
+    border-radius: 16px !important;
+  }
+  .catalog-toolbar {
+    margin: 0 0 10px !important;
+    padding: 7px !important;
+  }
+  .tool-page {
+    padding-top: 14px !important;
+  }
+  .breadcrumb {
+    margin-bottom: 8px !important;
+  }
+  .tool-hero.compact-tool-hero {
+    padding: 4px 0 12px !important;
+  }
+}
+
+/* Drag and Drop Active State for .dropzone and .preview-stage */
+.dropzone {
+  transition: border-color 0.18s ease, background-color 0.18s ease, transform 0.18s ease, box-shadow 0.18s ease;
+}
+.dropzone.drag-active {
+  border-color: var(--ajn-blue) !important;
+  background: #eaf3ff !important;
+  box-shadow: 0 0 0 4px rgba(23, 105, 232, 0.14) !important;
+  transform: scale(1.005);
+}
+.preview-stage.drag-active {
+  border-color: var(--ajn-blue) !important;
+  box-shadow: inset 0 0 0 2px var(--ajn-blue);
+}
+
+/* ============================================================
+   AJN BUZZ V6.2.3 — STICKY NAV, WCAG AA CONTRAST, >=44PX TAP TARGETS,
+   BEFORE/AFTER COMPARISON, FACE GUIDE OVERLAY & MOBILE ACTION BAR
+   ============================================================ */
+:root {
+  --ajn-muted: #475569 !important;
+  --muted: #475569 !important;
+  --ok: #087451 !important;
+  --ajn-green: #087451 !important;
+  --ajn-blue: #1254c7 !important;
+  --brand: #1254c7 !important;
+}
+
+/* Sticky header so top of main content is never clipped at any viewport */
+.nav {
+  position: sticky !important;
+  top: 0 !important;
+  height: auto !important;
+  min-height: 68px !important;
+}
+.navin {
+  min-height: 68px !important;
+  height: auto !important;
+}
+.page-top, .tool-page {
+  padding-top: 24px !important;
+}
+.tools-home-section {
+  padding-top: 16px !important;
+  padding-bottom: 32px !important;
+}
+
+/* WCAG AA >= 4.5:1 Contrast Enforcement */
+.muted,
+.lead,
+.sectionhead p,
+.tool-card p,
+.tool-card-meta,
+.tool-card-meta span,
+.tool-card-details,
+.category-card p,
+.category-card-head span,
+.popular-card span,
+.how-grid p,
+.trust-panel span,
+.home-faq p,
+.breadcrumb,
+.tool-summary,
+.tool-image-seo-copy p,
+.tool-seo-copy p,
+.tool-seo-copy li,
+.related-card small,
+.result-summary span,
+.calculated-size span,
+.field small,
+.cookie-consent p,
+.popular-searches > span,
+.ajnpdf-brandline small,
+.ajnpdf-actions > span,
+.pdf-mini-row,
+.pdf-paper span,
+.visual-side-title,
+.visual-bottom,
+.visual-badge span {
+  color: #475569 !important;
+}
+
+.dropzone div > b,
+.dropzone div > span,
+.signature-draw-head > div > b,
+.signature-draw-head > div > span {
+  display: block !important;
+}
+
+.dropzone div > span,
+.signature-draw-head > div > span {
+  margin-top: 3px !important;
+}
+
+.eyebrow,
+.tool-card-meta span,
+.plan-label,
+.text-link,
+.tool-card-details span:last-child,
+.category-more {
+  color: #0f4cb8 !important;
+}
+
+.tool-card-meta b {
+  background: #e8f1ff !important;
+  color: #0d47a1 !important;
+}
+
+.positive,
+.visual-ready,
+.result-ready > div:first-child span {
+  color: #066342 !important;
+}
+
+.target-miss {
+  color: #854d0e !important;
+}
+
+.searchbox input::placeholder {
+  color: #526075 !important;
+}
+
+.sr-only {
+  position: absolute !important;
+  width: 1px !important;
+  height: 1px !important;
+  padding: 0 !important;
+  margin: -1px !important;
+  overflow: hidden !important;
+  clip: rect(0, 0, 0, 0) !important;
+  white-space: nowrap !important;
+  border: 0 !important;
+}
+
+.footer {
+  background: #0f1f33 !important;
+  color: #e2ecf7 !important;
+}
+.footer-grid b,
+.footer .brand b,
+.footer .brand small {
+  color: #ffffff !important;
+}
+.footer-brand p,
+.footer-grid a,
+.footer-grid p,
+.footer-grid span,
+.footer-grid .muted {
+  color: #c5d6e8 !important;
+}
+.footer-grid a:hover {
+  color: #ffffff !important;
+}
+.mobile-bottom-nav a,
+.mobile-bottom-nav a span {
+  color: #334155 !important;
+}
+.mobile-bottom-nav a.active,
+.mobile-bottom-nav a.active span {
+  color: #0d47a1 !important;
+  background: #e1effe !important;
+}
+
+/* >= 44px Touch Target Enforcement */
+.btn,
+.btn.compact,
+.category-tabs button,
+.target-preset-row button,
+.preset-row button,
+.signature-draw-actions .btn,
+.field input:not([type=range]):not([type=checkbox]),
+.field select {
+  min-height: 44px !important;
+}
+
+.target-preset-row button {
+  padding: 0 12px !important;
+  font-size: 11px !important;
+}
+
+.icon-button,
+.nav-icon,
+.nav-utility a,
+.mobile-menu,
+.favorite-button {
+  width: 44px !important;
+  height: 44px !important;
+  min-width: 44px !important;
+  min-height: 44px !important;
+}
+
+.favorite-button {
+  top: 10px !important;
+  right: 10px !important;
+}
+
+.check {
+  min-height: 44px !important;
+  display: flex !important;
+  width: 100% !important;
+  align-items: center !important;
+  gap: 8px !important;
+  cursor: pointer;
+}
+
+.preview-toggle {
+  min-height: 44px !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 8px !important;
+  cursor: pointer;
+}
+
+.check input[type=checkbox],
+.preview-toggle input[type=checkbox] {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--ajn-blue);
+}
+
+/* Preview Stage, Before/After Slider & Face Alignment Guide Overlay */
+.preview-stage {
+  position: relative;
+  min-height: 300px;
+  border: 1px solid #d9e4ef;
+  border-radius: 18px;
+  background: #f8fafc;
+  display: grid;
+  place-items: center;
+  padding: 12px;
+  margin-top: 10px;
+  overflow: hidden;
+}
+
+.preview-stage-inner {
+  position: relative;
+  display: inline-grid;
+  place-items: center;
+  max-width: 100%;
+}
+
+.preview-stage img {
+  max-width: 100%;
+  max-height: 440px;
+  object-fit: contain;
+  display: block;
+  border-radius: 10px;
+}
+
+.preview-badge {
+  position: absolute;
+  left: 10px;
+  bottom: 10px;
+  padding: 5px 10px;
+  border-radius: 999px;
+  background: rgba(15, 23, 42, 0.84);
+  color: #ffffff;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  pointer-events: none;
+  z-index: 4;
+}
+
+.passport-face-guide {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 3;
+}
+
+.before-after-container {
+  position: relative;
+  display: inline-block;
+  max-width: 100%;
+  overflow: hidden;
+  border-radius: 10px;
+  user-select: none;
+}
+
+.ba-after-img {
+  display: block;
+  max-width: 100%;
+  max-height: 440px;
+  object-fit: contain;
+}
+
+.ba-before-clip {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.ba-before-img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.ba-divider {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: #1254c7;
+  box-shadow: 0 0 0 1px #ffffff, 0 0 8px rgba(15, 23, 42, 0.45);
+  pointer-events: none;
+  z-index: 3;
+}
+
+.ba-slider {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  opacity: 0;
+  cursor: ew-resize;
+  z-index: 5;
+}
+
+/* Desktop Balanced Two-Column Workspace */
+@media (min-width: 861px) {
+  .editor-shell {
+    grid-template-columns: minmax(0, 1.35fr) minmax(360px, 0.85fr) !important;
+    gap: 22px !important;
+  }
+  .mobile-editor-action-bar {
+    display: none !important;
+  }
+}
+
+/* Mobile Layout: Immediate Search + First Row of Tools & Sticky Tool Action Bar */
+@media (max-width: 860px) {
+  .nav, .navin {
+    min-height: 58px !important;
+  }
+  .tools-home-section {
+    padding-top: 8px !important;
+    padding-bottom: 20px !important;
+  }
+  .home-mobile-intro {
+    margin-bottom: 6px !important;
+  }
+  .home-mobile-intro h1 {
+    font-size: clamp(18px, 5vw, 22px) !important;
+    line-height: 1.15 !important;
+    margin: 0 0 2px !important;
+  }
+  .home-mobile-intro .lead {
+    font-size: 11.5px !important;
+    line-height: 1.35 !important;
+  }
+  .catalog-surface {
+    padding: 8px !important;
+    margin-bottom: 10px !important;
+  }
+  .catalog-toolbar {
+    gap: 6px !important;
+  }
+  .tool-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 8px !important;
+  }
+  .tool-card {
+    min-height: 156px !important;
+  }
+  .tool-card-link {
+    padding: 12px !important;
+  }
+  .tool-card .tool-icon {
+    width: 40px !important;
+    height: 40px !important;
+  }
+  .tool-card h3 {
+    font-size: 13px !important;
+    margin: 8px 0 3px !important;
+    padding-right: 28px !important;
+  }
+  .tool-card p {
+    font-size: 10.5px !important;
+    line-height: 1.35 !important;
+  }
+  .tool-page {
+    padding-top: 8px !important;
+  }
+  .breadcrumb {
+    margin-bottom: 4px !important;
+    font-size: 10px !important;
+  }
+  .tool-hero.compact-tool-hero {
+    padding: 2px 0 8px !important;
+    margin-bottom: 8px !important;
+    gap: 10px !important;
+  }
+  .tool-hero.compact-tool-hero .tool-icon.large {
+    width: 44px !important;
+    height: 44px !important;
+    border-radius: 12px !important;
+  }
+  .tool-hero.compact-tool-hero .tool-title {
+    font-size: clamp(18px, 5vw, 24px) !important;
+    margin: 2px 0 !important;
+  }
+  .tool-summary {
+    font-size: 11px !important;
+    line-height: 1.35 !important;
+  }
+  .editor-shell {
+    margin-top: 6px !important;
+    padding-bottom: 70px !important;
+  }
+  .dropzone {
+    min-height: 112px !important;
+    padding: 12px !important;
+  }
+  .preview-stage {
+    min-height: 210px !important;
+  }
+  .mobile-editor-action-bar {
+    position: fixed;
+    left: 10px;
+    right: 10px;
+    bottom: 68px;
+    z-index: 115;
+    display: flex;
+    gap: 8px;
+    padding: 8px;
+    background: rgba(255, 255, 255, 0.96);
+    border: 1px solid #cbd7ea;
+    border-radius: 16px;
+    box-shadow: 0 12px 32px rgba(14, 27, 44, 0.16);
+    backdrop-filter: blur(16px);
+  }
+  .mobile-editor-action-bar .btn {
+    flex: 1;
+    min-height: 44px !important;
+  }
+  .mobile-bottom-nav a {
+    color: #334155 !important;
+  }
+  .mobile-bottom-nav a.active {
+    color: #0d47a1 !important;
+    background: #e1effe !important;
+  }
+}
+
+@media (max-width: 359px) {
+  .container {
+    width: calc(100% - 16px) !important;
+  }
+  .tool-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 6px !important;
+  }
+  .tool-card-link {
+    padding: 10px !important;
+  }
+  .tool-card h3 {
+    font-size: 12px !important;
+  }
+}
+
+/* Mobile landscape handling */
+@media (max-height: 500px) and (orientation: landscape) {
+  .mobile-bottom-nav {
+    display: none !important;
+  }
+  .mobile-editor-action-bar {
+    bottom: 8px !important;
+  }
+}
+
+

@@ -2,7 +2,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { usePathname } from 'next/navigation';
 import { ADS_READY_EVENT, isBuzzAdEligiblePath } from '@/components/AdSenseScriptLoader';
-import { ADSENSE_CLIENT } from '@/lib/ads';
+import { ADSENSE_CLIENT, isAdsEnabled } from '@/lib/ads';
 
 declare global { interface Window { adsbygoogle?: unknown[]; } }
 
@@ -18,7 +18,7 @@ export function AdSlot({slot='home'}:{slot?:string}) {
     const sync=()=>{
       const host=window.location.hostname.toLowerCase();
       const productionHost=host==='ajn.buzz'||host==='www.ajn.buzz';
-      setAllowed(process.env.NODE_ENV==='production' && process.env.NEXT_PUBLIC_ADS_ENABLED==='true' && productionHost && localStorage.getItem('ajn_buzz_cookie_consent')==='accepted' && isBuzzAdEligiblePath(window.location.pathname));
+      setAllowed(process.env.NODE_ENV==='production' && isAdsEnabled() && productionHost && localStorage.getItem('ajn_buzz_cookie_consent')==='accepted' && isBuzzAdEligiblePath(window.location.pathname));
     };
     sync(); window.addEventListener('ajn-buzz-cookie-consent-changed',sync); return()=>window.removeEventListener('ajn-buzz-cookie-consent-changed',sync);
   },[pathname]);

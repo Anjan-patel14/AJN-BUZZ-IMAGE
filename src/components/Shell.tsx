@@ -1,5 +1,6 @@
 'use client';
 
+import Image from 'next/image';
 import Link from 'next/link';
 import { ExternalLink, FileText, Heart, History, Home, Menu, Search, Wrench, X } from 'lucide-react';
 import { usePathname } from 'next/navigation';
@@ -7,9 +8,9 @@ import { useEffect, useState } from 'react';
 
 function Brand() {
   return (
-    <Link href="/" className="brand" aria-label="AJN BUZZ IMAGE home">
+    <Link href="/" className="brand">
       <span className="brand-logo-shell">
-        <img src="/brand/ajn-buzz-logo.png" alt="AJN BUZZ IMAGE" width="42" height="42" />
+        <Image src="/brand/ajn-buzz-logo.png" alt="" width={42} height={42} referrerPolicy="no-referrer" />
       </span>
       <span>
         <b>AJN BUZZ</b>

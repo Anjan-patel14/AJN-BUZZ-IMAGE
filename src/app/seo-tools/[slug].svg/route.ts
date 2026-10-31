@@ -4,8 +4,11 @@ export function generateStaticParams() {
   return IMAGE_TOOLS.map(tool => ({ slug: tool.id }));
 }
 
-export async function GET(_request: Request, context: { params: Promise<any> }) {
-  const params: any = context?.params ? await context.params : {};
+export async function GET(
+  _request: Request,
+  context: { params: Promise<{ slug?: string }> }
+) {
+  const params = context?.params ? await context.params : {};
   const rawSlug = String(params?.slug || '');
   const slug = rawSlug.replace(/\.svg$/i, '');
   const tool = TOOL_MAP.get((slug || 'compress') as ToolId) || IMAGE_TOOLS[0]!;

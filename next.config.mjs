@@ -1,3 +1,5 @@
+import './scripts/eslint-loader.mjs';
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   output: 'standalone',
@@ -33,6 +35,20 @@ const nextConfig = {
       {
         source: '/app-ads.txt',
         headers: [{ key: 'Cache-Control', value: 'public, max-age=3600, s-maxage=3600' }],
+      },
+    ];
+  },
+  async redirects() {
+    return [
+      {
+        source: '/tools/:slug',
+        destination: '/:slug',
+        permanent: true,
+      },
+      {
+        source: '/watermark',
+        destination: '/text-on-image',
+        permanent: true,
       },
     ];
   },

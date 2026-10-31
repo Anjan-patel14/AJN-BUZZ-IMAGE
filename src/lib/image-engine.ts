@@ -1,41 +1,46 @@
 import type { ImageTool, PhysicalUnit } from './image-tools';
 
-export type OutputFormat = 'image/png' | 'image/jpeg' | 'image/webp';
+export type OutputFormat = 'image/jpeg' | 'image/png' | 'image/webp';
 export type CompressionMode = 'auto' | 'target';
-export type WatermarkPosition = 'center' | 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right';
 
 export type ImageOptions = {
   width?: number;
   height?: number;
-  cropX?: number;
-  cropY?: number;
-  cropWidth?: number;
-  cropHeight?: number;
-  angle?: number;
-  flip?: 'none' | 'horizontal' | 'vertical';
-  format?: OutputFormat;
-  quality?: number;
-  text?: string;
-  opacity?: number;
-  fontSize?: number;
-  amount?: number;
-  color?: string;
-  brightness?: number;
-  contrast?: number;
-  saturation?: number;
-  blur?: number;
-  position?: WatermarkPosition;
   unit?: PhysicalUnit;
   physicalWidth?: number;
   physicalHeight?: number;
   dpi?: number;
+  quality?: number;
+  format?: OutputFormat;
+  angle?: number;
+  flip?: 'none' | 'horizontal' | 'vertical';
+  cropX?: number;
+  cropY?: number;
+  cropWidth?: number;
+  cropHeight?: number;
   ratioWidth?: number;
   ratioHeight?: number;
   anchorX?: number;
   anchorY?: number;
+  zoom?: number;
+  text?: string;
+  opacity?: number;
+  fontSize?: number;
+  color?: string;
+  position?: 'center' | 'bottom-right' | 'bottom-left' | 'top-right' | 'top-left';
+  amount?: number;
   backgroundColor?: string;
+  brightness?: number;
+  contrast?: number;
+  saturation?: number;
+  blur?: number;
   replaceBackground?: boolean;
   trimMargin?: number;
+  a4Sheet?: boolean;
+  a4Count?: number;
+  a4MarginMm?: number;
+  a4SpacingMm?: number;
+  targetKb?: number;
 };
 
 export type ImageProcessResult = {
@@ -43,294 +48,1446 @@ export type ImageProcessResult = {
   width: number;
   height: number;
   type: OutputFormat;
-  targetReached?: boolean;
   targetBytes?: number;
+  targetReached?: boolean;
+  dpi?: number;
   note?: string;
-  attempts?: number;
 };
 
-export type CompressionOptions = { mode: CompressionMode; targetBytes?: number; format?: OutputFormat };
+export type CompressOptions = {
+  mode: CompressionMode;
+  targetBytes?: number;
+  format?: OutputFormat;
+  quality?: number;
+  signal?: AbortSignal;
+  onProgress?: (pct: number) => void;
+};
 
-type Decoded = { source: CanvasImageSource; width: number; height: number; close?: () => void };
+// iOS Safari / WebKit hard canvas area limit is 16,777,216 pixels (4096 × 4096).
+// Source decoding allows up to 50 MP camera photos; output canvases are safely capped to 16.77 MP.
+export const MAX_CANVAS_PIXELS = 16_777_216;
+export const MAX_CANVAS_EDGE = 8192;
+const MAX_DECODE_PIXELS = 50_000_000;
+const MAX_DECODE_EDGE = 12000;
 
-const MAX_EDGE = 12000;
-const MAX_PIXELS = 36_000_000;
-const MIN_COMPRESS_EDGE = 64;
+type BitmapLike = { width: number; height: number; close: () => void; source: CanvasImageSource };
 
-function validateDimensions(width: number, height: number) {
-  if (!width || !height || !Number.isFinite(width) || !Number.isFinite(height)) throw new Error('The image has invalid dimensions.');
-  if (width > MAX_EDGE || height > MAX_EDGE || width * height > MAX_PIXELS) {
-    throw new Error('This output is too large for safe browser processing. Reduce the dimensions or DPI.');
-  }
+function clamp(value: number, min: number, max: number) {
+  return Math.min(max, Math.max(min, value));
 }
 
-function supportedInput(file: File) { return file.type.startsWith('image/') || /\.svg$/i.test(file.name); }
-
-async function decode(file: File): Promise<Decoded> {
-  if (!supportedInput(file)) throw new Error('Choose a supported image file.');
-  if ('createImageBitmap' in window) {
-    try {
-      const bitmap = await createImageBitmap(file, { imageOrientation: 'from-image' });
-      validateDimensions(bitmap.width, bitmap.height);
-      return { source: bitmap, width: bitmap.width, height: bitmap.height, close: () => bitmap.close() };
-    } catch { /* browser Image decoder fallback */ }
-  }
-  const url = URL.createObjectURL(file);
-  const image = new Image();
-  image.decoding = 'async';
-  image.src = url;
+export function releaseCanvas(canvas: HTMLCanvasElement | OffscreenCanvas | null | undefined) {
+  if (!canvas) return;
   try {
-    await image.decode();
-    validateDimensions(image.naturalWidth, image.naturalHeight);
-    return { source: image, width: image.naturalWidth, height: image.naturalHeight };
-  } catch { throw new Error('This image format could not be decoded by your browser.'); }
-  finally { URL.revokeObjectURL(url); }
+    canvas.width = 0;
+    canvas.height = 0;
+  } catch {}
+}
+
+export function fitToSafeCanvas(width: number, height: number): { width: number; height: number; capped: boolean } {
+  let w = Math.max(1, Math.round(width));
+  let h = Math.max(1, Math.round(height));
+  let capped = false;
+  if (w > MAX_CANVAS_EDGE || h > MAX_CANVAS_EDGE) {
+    const edgeScale = Math.min(MAX_CANVAS_EDGE / w, MAX_CANVAS_EDGE / h);
+    w = Math.max(1, Math.floor(w * edgeScale));
+    h = Math.max(1, Math.floor(h * edgeScale));
+    capped = true;
+  }
+  if (w * h > MAX_CANVAS_PIXELS) {
+    const areaScale = Math.sqrt(MAX_CANVAS_PIXELS / (w * h));
+    w = Math.max(1, Math.floor(w * areaScale));
+    h = Math.max(1, Math.floor(h * areaScale));
+    capped = true;
+  }
+  return { width: w, height: h, capped };
 }
 
 function makeCanvas(width: number, height: number) {
-  const w = Math.max(1, Math.round(width));
-  const h = Math.max(1, Math.round(height));
-  validateDimensions(w, h);
-  const canvas = document.createElement('canvas'); canvas.width = w; canvas.height = h; return canvas;
-}
-
-function context2d(canvas: HTMLCanvasElement, readFrequently = false) {
-  const ctx = canvas.getContext('2d', readFrequently ? { willReadFrequently: true } : undefined);
-  if (!ctx) throw new Error('Canvas processing is unavailable in this browser.');
-  return ctx;
-}
-
-function drawHighQuality(ctx: CanvasRenderingContext2D, source: CanvasImageSource, width: number, height: number) {
-  ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = 'high'; ctx.drawImage(source, 0, 0, width, height);
-}
-
-function drawDecoded(decoded: Decoded, width = decoded.width, height = decoded.height) {
-  const canvas = makeCanvas(width, height); drawHighQuality(context2d(canvas), decoded.source, canvas.width, canvas.height); return canvas;
-}
-
-function canvasBlob(canvas: HTMLCanvasElement, type: OutputFormat, quality = .9) {
-  return new Promise<Blob>((resolve, reject) => {
-    const encode = (target: HTMLCanvasElement) => target.toBlob(
-      value => value ? resolve(value) : reject(new Error(`Browser could not encode ${type.replace('image/', '').toUpperCase()}.`)),
-      type, Math.min(1, Math.max(.05, quality)),
-    );
-    if (type !== 'image/jpeg') { encode(canvas); return; }
-    const flattened = makeCanvas(canvas.width, canvas.height); const ctx = context2d(flattened);
-    ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, flattened.width, flattened.height); ctx.drawImage(canvas, 0, 0); encode(flattened);
-  });
-}
-
-function sourceOutputFormat(file: File): OutputFormat | null {
-  if (file.type === 'image/jpeg' || file.type === 'image/png' || file.type === 'image/webp') return file.type;
-  return null;
-}
-
-function safeOutputType(tool: ImageTool, requested: OutputFormat | undefined, inputType: string): OutputFormat {
-  if (['to-jpg'].includes(tool.workflow)) return 'image/jpeg';
-  if (['remove-bg','signature-maker','signature-remove-bg','signature-png'].includes(tool.workflow)) return 'image/png';
-  if (tool.workflow === 'jpg-to-png') return requested === 'image/webp' ? 'image/webp' : 'image/png';
-  if (tool.workflow === 'dpi') return requested === 'image/jpeg' ? 'image/jpeg' : 'image/png';
-  if (requested) return requested;
-  if (inputType === 'image/jpeg' || inputType === 'image/png' || inputType === 'image/webp') return inputType;
-  return 'image/png';
-}
-
-function hexToRgb(hex: string) {
-  const clean = (hex || '#ffffff').replace('#', '').trim();
-  const value = clean.length === 3 ? clean.split('').map(c => c + c).join('') : clean.padEnd(6, 'f').slice(0, 6);
-  const number = Number.parseInt(value, 16);
-  return { r: (number >> 16) & 255, g: (number >> 8) & 255, b: number & 255 };
-}
-
-export function pixelsFromPhysical(value: number, unit: PhysicalUnit, dpi: number) {
-  if (!Number.isFinite(value) || value <= 0) return 0;
-  if (unit === 'px') return Math.round(value);
-  const inches = unit === 'in' ? value : unit === 'cm' ? value / 2.54 : value / 25.4;
-  return Math.max(1, Math.round(inches * dpi));
-}
-
-export async function imageDimensions(file: File) {
-  const decoded = await decode(file); try { return { width: decoded.width, height: decoded.height }; } finally { decoded.close?.(); }
-}
-
-async function bestLossyAtSize(canvas: HTMLCanvasElement, type: 'image/jpeg' | 'image/webp', targetBytes: number) {
-  let low = .12, high = .96, best: { blob: Blob; quality: number } | null = null, smallest: { blob: Blob; quality: number } | null = null, attempts = 0;
-  for (let i = 0; i < 10; i++) {
-    const quality = (low + high) / 2; const blob = await canvasBlob(canvas, type, quality); attempts++;
-    if (!smallest || blob.size < smallest.blob.size) smallest = { blob, quality };
-    if (blob.size <= targetBytes) { best = { blob, quality }; low = quality; } else high = quality;
+  if (width < 1 || height < 1 || !Number.isFinite(width) || !Number.isFinite(height)) {
+    throw new Error('Image dimensions must be greater than 0 px.');
   }
-  if (best) return { ...best, attempts };
-  const floor = await canvasBlob(canvas, type, .08); attempts++;
-  if (!smallest || floor.size < smallest.blob.size) smallest = { blob: floor, quality: .08 };
-  return { ...(smallest as { blob: Blob; quality: number }), attempts };
-}
-
-export async function compressImage(file: File, options: CompressionOptions): Promise<ImageProcessResult> {
-  const rawTarget = Number(options.targetBytes ?? 0);
-  if (options.mode === 'target' && (!Number.isFinite(rawTarget) || rawTarget <= 0)) throw new Error('Enter a valid target file size greater than 0.');
-  const decoded = await decode(file); const requestedType = options.format || sourceOutputFormat(file) || 'image/webp'; const target = Math.max(1, Math.round(rawTarget));
-  try {
-    if (options.mode === 'target' && target >= file.size && sourceOutputFormat(file) === requestedType) return { blob:file,width:decoded.width,height:decoded.height,type:requestedType,targetReached:true,targetBytes:target,note:'The image is already at or below the requested size.',attempts:0 };
-    if (options.mode === 'auto') {
-      const canvas = drawDecoded(decoded); const blob = await canvasBlob(canvas, requestedType, requestedType === 'image/png' ? 1 : .88);
-      if (sourceOutputFormat(file) === requestedType && blob.size >= file.size) return { blob:file,width:decoded.width,height:decoded.height,type:requestedType,note:'The original was already smaller, so it was kept.',attempts:1 };
-      return { blob,width:canvas.width,height:canvas.height,type:requestedType,attempts:1 };
-    }
-    let scale = 1, attempts = 0; let smallest: { blob: Blob; width: number; height: number } | null = null;
-    for (let pass = 0; pass < 9; pass++) {
-      const width = Math.max(MIN_COMPRESS_EDGE, Math.round(decoded.width * scale)); const height = Math.max(MIN_COMPRESS_EDGE, Math.round(decoded.height * scale)); const canvas = drawDecoded(decoded, width, height);
-      let candidate: Blob;
-      if (requestedType === 'image/png') { candidate = await canvasBlob(canvas, requestedType, 1); attempts++; }
-      else { const result = await bestLossyAtSize(canvas, requestedType, target); candidate = result.blob; attempts += result.attempts; }
-      if (!smallest || candidate.size < smallest.blob.size) smallest = { blob:candidate,width,height };
-      if (candidate.size <= target) return { blob:candidate,width,height,type:requestedType,targetReached:true,targetBytes:target,attempts,note:pass>0?'Target reached by balancing quality and dimensions.':'Target reached without reducing dimensions.' };
-      if (width <= MIN_COMPRESS_EDGE || height <= MIN_COMPRESS_EDGE) break;
-      const ratio = Math.sqrt(target / Math.max(1, candidate.size)) * .96; scale *= Math.min(.88, Math.max(.55, ratio));
-    }
-    if (!smallest) throw new Error('The browser could not produce a compressed image.');
-    return { blob:smallest.blob,width:smallest.width,height:smallest.height,type:requestedType,targetReached:smallest.blob.size<=target,targetBytes:target,attempts,note:`Closest safe browser result is ${Math.max(1,Math.round(smallest.blob.size/1024))} KB.` };
-  } finally { decoded.close?.(); }
-}
-
-function drawCover(source: CanvasImageSource, sourceWidth: number, sourceHeight: number, outputWidth: number, outputHeight: number, anchorX = .5, anchorY = .5) {
-  const canvas = makeCanvas(outputWidth, outputHeight); const ctx = context2d(canvas);
-  const targetRatio = outputWidth / outputHeight; const sourceRatio = sourceWidth / sourceHeight;
-  let sx = 0, sy = 0, sw = sourceWidth, sh = sourceHeight;
-  if (sourceRatio > targetRatio) { sw = sourceHeight * targetRatio; sx = (sourceWidth - sw) * Math.min(1,Math.max(0,anchorX)); }
-  else if (sourceRatio < targetRatio) { sh = sourceWidth / targetRatio; sy = (sourceHeight - sh) * Math.min(1,Math.max(0,anchorY)); }
-  ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = 'high'; ctx.drawImage(source, sx, sy, sw, sh, 0, 0, outputWidth, outputHeight); return canvas;
-}
-
-function edgeBackgroundTransparency(canvas: HTMLCanvasElement, selectedColor?: string, tolerance = 42) {
-  const ctx = context2d(canvas, true);
-  const pixels = ctx.getImageData(0, 0, canvas.width, canvas.height);
-  const data = pixels.data;
-  const width = canvas.width, height = canvas.height, count = width * height;
-
-  const cornerPositions = [0, (width - 1) * 4, (height - 1) * width * 4, (height * width - 1) * 4];
-  const transparentCorners = cornerPositions.filter(p => data[p + 3]! < 20).length;
-
-  if (!selectedColor && transparentCorners === 4) {
-    return canvas;
+  if (width > 20000 || height > 20000) {
+    throw new Error(`Requested dimensions (${Math.round(width)} × ${Math.round(height)} px) exceed the safe browser limit.`);
   }
-
-  let sample: { r: number; g: number; b: number };
-  if (selectedColor) {
-    sample = hexToRgb(selectedColor);
-  } else {
-    const opaqueCorners = cornerPositions.filter(p => data[p + 3]! >= 20);
-    if (opaqueCorners.length === 0) return canvas;
-    const sum = opaqueCorners.reduce((a, p) => ({ r: a.r + data[p]!, g: a.g + data[p + 1]!, b: a.b + data[p + 2]! }), { r: 0, g: 0, b: 0 });
-    sample = { r: Math.round(sum.r / opaqueCorners.length), g: Math.round(sum.g / opaqueCorners.length), b: Math.round(sum.b / opaqueCorners.length) };
-  }
-
-  const limit = Math.min(220, Math.max(5, tolerance));
-  const connected = new Uint8Array(count);
-
-  const matches = (index: number) => {
-    const i = index * 4;
-    if (data[i + 3]! < 20) return false;
-    const dr = data[i]! - sample.r;
-    const dg = data[i + 1]! - sample.g;
-    const db = data[i + 2]! - sample.b;
-    return Math.sqrt(dr * dr + dg * dg + db * db) <= limit;
-  };
-
-  for (let x = 0; x < width; x++) { if (matches(x)) connected[x] = 1; const b = (height - 1) * width + x; if (matches(b)) connected[b] = 1; }
-  for (let y = 0; y < height; y++) { const l = y * width, r = l + width - 1; if (matches(l)) connected[l] = 1; if (matches(r)) connected[r] = 1; }
-
-  for (let sweep = 0; sweep < 4; sweep++) {
-    for (let y = 0; y < height; y++) for (let x = 0; x < width; x++) { const index = y * width + x; if (connected[index] || !matches(index)) continue; if ((x > 0 && connected[index - 1]) || (y > 0 && connected[index - width])) connected[index] = 1; }
-    for (let y = height - 1; y >= 0; y--) for (let x = width - 1; x >= 0; x--) { const index = y * width + x; if (connected[index] || !matches(index)) continue; if ((x + 1 < width && connected[index + 1]) || (y + 1 < height && connected[index + width])) connected[index] = 1; }
-  }
-
-  for (let index = 0; index < count; index++) if (connected[index]) data[index * 4 + 3] = 0;
-  ctx.putImageData(pixels, 0, 0);
+  const safe = fitToSafeCanvas(width, height);
+  const canvas = document.createElement('canvas');
+  canvas.width = safe.width;
+  canvas.height = safe.height;
   return canvas;
 }
 
+/**
+ * Inspects raw JPEG bytes for EXIF APP1 orientation tag (1..8), presence of APP1/APP2/APP13 metadata,
+ * and raw SOF frame header width & height so we can verify EXIF orientation and metadata stripping.
+ */
+export function inspectJpegBinary(bytes: Uint8Array): {
+  isJpeg: boolean;
+  orientation: number;
+  hasExifOrAppMeta: boolean;
+  sofWidth: number;
+  sofHeight: number;
+} {
+  if (bytes.length < 4 || bytes[0] !== 0xff || bytes[1] !== 0xd8) {
+    return { isJpeg: false, orientation: 1, hasExifOrAppMeta: false, sofWidth: 0, sofHeight: 0 };
+  }
+  let offset = 2;
+  let orientation = 1;
+  let hasExifOrAppMeta = false;
+  let sofWidth = 0;
+  let sofHeight = 0;
 
-function trimSignature(source: HTMLCanvasElement, margin = 12) {
-  const ctx=context2d(source,true), pixels=ctx.getImageData(0,0,source.width,source.height), data=pixels.data;
-  const corners=[0,(source.width-1)*4,((source.height-1)*source.width)*4,((source.height*source.width)-1)*4];
-  const bg=corners.reduce((a,p)=>({r:a.r+data[p]!,g:a.g+data[p+1]!,b:a.b+data[p+2]!,a:a.a+data[p+3]!}),{r:0,g:0,b:0,a:0}); bg.r/=4;bg.g/=4;bg.b/=4;bg.a/=4;
-  let minX=source.width,minY=source.height,maxX=-1,maxY=-1;
-  for(let y=0;y<source.height;y++)for(let x=0;x<source.width;x++){const i=(y*source.width+x)*4,alpha=data[i+3]!;if(alpha<10)continue;const dr=data[i]!-bg.r,dg=data[i+1]!-bg.g,db=data[i+2]!-bg.b;const distance=Math.sqrt(dr*dr+dg*dg+db*db);const visible=bg.a<40?alpha>20:distance>28;if(!visible)continue;minX=Math.min(minX,x);minY=Math.min(minY,y);maxX=Math.max(maxX,x);maxY=Math.max(maxY,y);}
-  if(maxX<minX||maxY<minY)return source;
-  const m=Math.max(0,Math.round(margin));const x=Math.max(0,minX-m),y=Math.max(0,minY-m),right=Math.min(source.width,maxX+1+m),bottom=Math.min(source.height,maxY+1+m);
-  const out=makeCanvas(right-x,bottom-y);context2d(out).drawImage(source,x,y,right-x,bottom-y,0,0,right-x,bottom-y);return out;
+  while (offset + 4 <= bytes.length) {
+    if (bytes[offset] !== 0xff) {
+      offset += 1;
+      continue;
+    }
+    const marker = bytes[offset + 1]!;
+    if (marker === 0xff) {
+      offset += 1;
+      continue;
+    }
+    if (marker === 0xd9 || marker === 0xda) break; // EOI or SOS
+    if (marker === 0xd8 || (marker >= 0xd0 && marker <= 0xd7) || marker === 0x01) {
+      offset += 2;
+      continue;
+    }
+    const segLen = ((bytes[offset + 2] ?? 0) << 8) | (bytes[offset + 3] ?? 0);
+    if (segLen < 2 || offset + 2 + segLen > bytes.length) break;
+
+    // APP1 (Exif/XMP), APP2 (ICC/FlashPix), APP12, APP13 (IPTC), APP14, COM
+    if ((marker >= 0xe1 && marker <= 0xef) || marker === 0xfe) {
+      hasExifOrAppMeta = true;
+    }
+
+    // Parse EXIF orientation in APP1 (0xFFE1)
+    if (marker === 0xe1 && segLen >= 14) {
+      const start = offset + 4;
+      if (
+        bytes[start] === 0x45 && // 'E'
+        bytes[start + 1] === 0x78 && // 'x'
+        bytes[start + 2] === 0x69 && // 'i'
+        bytes[start + 3] === 0x66 && // 'f'
+        bytes[start + 4] === 0x00 &&
+        bytes[start + 5] === 0x00
+      ) {
+        const tiff = start + 6;
+        const little = bytes[tiff] === 0x49 && bytes[tiff + 1] === 0x49;
+        const readU16 = (pos: number) =>
+          little
+            ? (bytes[pos] ?? 0) | ((bytes[pos + 1] ?? 0) << 8)
+            : ((bytes[pos] ?? 0) << 8) | (bytes[pos + 1] ?? 0);
+        const readU32 = (pos: number) =>
+          little
+            ? ((bytes[pos] ?? 0) |
+                ((bytes[pos + 1] ?? 0) << 8) |
+                ((bytes[pos + 2] ?? 0) << 16) |
+                ((bytes[pos + 3] ?? 0) << 24)) >>>
+              0
+            : (((bytes[pos] ?? 0) << 24) |
+                ((bytes[pos + 1] ?? 0) << 16) |
+                ((bytes[pos + 2] ?? 0) << 8) |
+                (bytes[pos + 3] ?? 0)) >>>
+              0;
+
+        if (tiff + 8 <= bytes.length) {
+          const ifdOffset = readU32(tiff + 4);
+          const ifdStart = tiff + ifdOffset;
+          if (ifdStart + 2 <= offset + 2 + segLen) {
+            const entries = readU16(ifdStart);
+            for (let i = 0; i < entries; i++) {
+              const entryOffset = ifdStart + 2 + i * 12;
+              if (entryOffset + 12 > offset + 2 + segLen) break;
+              const tag = readU16(entryOffset);
+              if (tag === 0x0112) {
+                const val = readU16(entryOffset + 8);
+                if (val >= 1 && val <= 8) orientation = val;
+                break;
+              }
+            }
+          }
+        }
+      }
+    }
+
+    // SOF0 / SOF1 / SOF2 frame header dimensions
+    if (
+      (marker >= 0xc0 && marker <= 0xc3) ||
+      (marker >= 0xc5 && marker <= 0xc7) ||
+      (marker >= 0xc9 && marker <= 0xcb) ||
+      (marker >= 0xcd && marker <= 0xcf)
+    ) {
+      if (offset + 9 < bytes.length) {
+        sofHeight = ((bytes[offset + 5] ?? 0) << 8) | (bytes[offset + 6] ?? 0);
+        sofWidth = ((bytes[offset + 7] ?? 0) << 8) | (bytes[offset + 8] ?? 0);
+      }
+    }
+
+    offset += 2 + segLen;
+  }
+
+  return { isJpeg: true, orientation, hasExifOrAppMeta, sofWidth, sofHeight };
 }
 
-function crc32(bytes: Uint8Array) {
-  let crc = 0xffffffff;
-  for (const value of bytes) { crc ^= value; for (let k=0;k<8;k++) crc = (crc >>> 1) ^ (0xedb88320 & -(crc & 1)); }
-  return (crc ^ 0xffffffff) >>> 0;
-}
-function u32(value:number){return new Uint8Array([(value>>>24)&255,(value>>>16)&255,(value>>>8)&255,value&255]);}
-function concatBytes(parts:Uint8Array[]){const size=parts.reduce((n,p)=>n+p.length,0),out=new Uint8Array(size);let offset=0;for(const p of parts){out.set(p,offset);offset+=p.length;}return out;}
+function orientCanvasIfNeeded(
+  rawSource: CanvasImageSource,
+  rawW: number,
+  rawH: number,
+  orientation: number,
+  sofW: number,
+  sofH: number
+): BitmapLike | null {
+  if (orientation <= 1 || orientation > 8) return null;
+  const swapsAxes = orientation >= 5 && orientation <= 8;
+  // If the browser's decoder already swapped dimensions for 5..8, it already applied EXIF orientation.
+  if (swapsAxes && sofW > 0 && sofH > 0 && sofW !== sofH && rawW === sofH && rawH === sofW) {
+    return null;
+  }
+  // If browser did NOT swap axes for 5..8 (or if square / 2..4 where createImageBitmap didn't orient),
+  // check whether createImageBitmap with 'none' vs 'from-image' was used.
+  if (!swapsAxes) return null;
 
-async function applyDpi(blob: Blob, type: OutputFormat, dpi: number) {
-  const density=Math.min(65535,Math.max(1,Math.round(dpi)));
-  const raw=new Uint8Array(await blob.arrayBuffer());
-  if(type==='image/jpeg'){
-    for(let i=2;i+16<raw.length;){if(raw[i]!==0xff)break;const marker=raw[i+1]!;if(marker===0xd9||marker===0xda)break;const length=(raw[i+2]!<<8)|raw[i+3]!;if(marker===0xe0&&raw[i+4]===0x4a&&raw[i+5]===0x46&&raw[i+6]===0x49&&raw[i+7]===0x46&&raw[i+8]===0){const out=raw.slice();out[i+11]=1;out[i+12]=(density>>8)&255;out[i+13]=density&255;out[i+14]=(density>>8)&255;out[i+15]=density&255;return new Blob([out],{type});}if(length<2)break;i+=2+length;}
-    const segment=new Uint8Array([0xff,0xe0,0x00,0x10,0x4a,0x46,0x49,0x46,0x00,0x01,0x01,0x01,(density>>8)&255,density&255,(density>>8)&255,density&255,0x00,0x00]);
-    return new Blob([concatBytes([raw.slice(0,2),segment,raw.slice(2)])],{type});
+  const targetW = rawH;
+  const targetH = rawW;
+  const safe = fitToSafeCanvas(targetW, targetH);
+  const canvas = document.createElement('canvas');
+  canvas.width = safe.width;
+  canvas.height = safe.height;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) return null;
+
+  ctx.save();
+  switch (orientation) {
+    case 5:
+      ctx.transform(0, 1, 1, 0, 0, 0);
+      break;
+    case 6:
+      ctx.transform(0, 1, -1, 0, safe.width, 0);
+      break;
+    case 7:
+      ctx.transform(0, -1, -1, 0, safe.width, safe.height);
+      break;
+    case 8:
+      ctx.transform(0, -1, 1, 0, 0, safe.height);
+      break;
+    default:
+      break;
   }
-  if(type==='image/png'&&raw.length>8){
-    const ppm=Math.max(1,Math.round(dpi/0.0254)); const data=concatBytes([u32(ppm),u32(ppm),new Uint8Array([1])]); const typeBytes=new TextEncoder().encode('pHYs'); const chunk=concatBytes([u32(data.length),typeBytes,data,u32(crc32(concatBytes([typeBytes,data])))]);
-    const parts:Uint8Array[]=[raw.slice(0,8)];let offset=8,inserted=false;
-    while(offset+12<=raw.length){const length=(raw[offset]!<<24)|(raw[offset+1]!<<16)|(raw[offset+2]!<<8)|raw[offset+3]!;const end=offset+12+length;if(end>raw.length)break;const name=String.fromCharCode(...raw.slice(offset+4,offset+8));if(!inserted&&name==='IDAT'){parts.push(chunk);inserted=true;}if(name!=='pHYs')parts.push(raw.slice(offset,end));offset=end;}
-    if(!inserted)parts.push(chunk);return new Blob([concatBytes(parts)],{type});
+  ctx.drawImage(rawSource, 0, 0, safe.height, safe.width);
+  ctx.restore();
+
+  return {
+    width: safe.width,
+    height: safe.height,
+    source: canvas,
+    close: () => releaseCanvas(canvas),
+  };
+}
+
+async function decode(file: File): Promise<BitmapLike> {
+  const fileName = file.name || 'image';
+  if (/\.hei[cf]$/i.test(fileName) || file.type === 'image/heic' || file.type === 'image/heif') {
+    throw new Error(
+      `"${fileName}" is in HEIC/HEIF format, which browsers cannot decode directly. Please convert or export it as JPG, PNG, or WebP on your device first.`
+    );
   }
+
+  let jpegMeta = { isJpeg: false, orientation: 1, hasExifOrAppMeta: false, sofWidth: 0, sofHeight: 0 };
+  if (file.type === 'image/jpeg' || /\.jpe?g$/i.test(fileName)) {
+    try {
+      const headSlice = new Uint8Array(await file.slice(0, Math.min(file.size, 262_144)).arrayBuffer());
+      jpegMeta = inspectJpegBinary(headSlice);
+    } catch {}
+  }
+
+  if (typeof createImageBitmap === 'function' && !/\.svg$/i.test(fileName) && file.type !== 'image/svg+xml') {
+    try {
+      const bitmap = await createImageBitmap(file, { imageOrientation: 'from-image' });
+      if (
+        bitmap.width < 1 ||
+        bitmap.height < 1 ||
+        bitmap.width > MAX_DECODE_EDGE ||
+        bitmap.height > MAX_DECODE_EDGE ||
+        bitmap.width * bitmap.height > MAX_DECODE_PIXELS
+      ) {
+        const w = bitmap.width;
+        const h = bitmap.height;
+        bitmap.close();
+        throw new Error(
+          `Source image dimensions (${w} × ${h} px) exceed the safe browser decode limit of ${Math.round(MAX_DECODE_PIXELS / 1_000_000)} MP.`
+        );
+      }
+      const manualOrient = orientCanvasIfNeeded(
+        bitmap,
+        bitmap.width,
+        bitmap.height,
+        jpegMeta.orientation,
+        jpegMeta.sofWidth,
+        jpegMeta.sofHeight
+      );
+      if (manualOrient) {
+        bitmap.close();
+        return manualOrient;
+      }
+      return {
+        width: bitmap.width,
+        height: bitmap.height,
+        source: bitmap,
+        close: () => bitmap.close(),
+      };
+    } catch (err) {
+      if (err instanceof Error && err.message.includes('exceed the safe browser decode limit')) {
+        throw err;
+      }
+    }
+  }
+
+  const url = URL.createObjectURL(file);
+  try {
+    const img = await new Promise<HTMLImageElement>((resolve, reject) => {
+      const element = new Image();
+      element.onload = () => resolve(element);
+      element.onerror = () =>
+        reject(
+          new Error(
+            `"${fileName}" could not be decoded. The file may be corrupted, truncated, or in an unsupported format.`
+          )
+        );
+      element.src = url;
+    });
+    const width = img.naturalWidth || img.width || 800;
+    const height = img.naturalHeight || img.height || 600;
+    if (width < 1 || height < 1 || width > MAX_DECODE_EDGE || height > MAX_DECODE_EDGE || width * height > MAX_DECODE_PIXELS) {
+      throw new Error(`Source image dimensions (${width} × ${height} px) exceed the safe browser decode limit.`);
+    }
+    const safe = fitToSafeCanvas(width, height);
+    const canvas = makeCanvas(safe.width, safe.height);
+    const ctx = canvas.getContext('2d');
+    if (!ctx) {
+      releaseCanvas(canvas);
+      throw new Error('Browser canvas context is unavailable.');
+    }
+    ctx.drawImage(img, 0, 0, safe.width, safe.height);
+    return { width: safe.width, height: safe.height, source: canvas, close: () => releaseCanvas(canvas) };
+  } finally {
+    URL.revokeObjectURL(url);
+  }
+}
+
+export async function imageDimensions(file: File): Promise<{ width: number; height: number }> {
+  const decoded = await decode(file);
+  try {
+    return { width: decoded.width, height: decoded.height };
+  } finally {
+    decoded.close();
+  }
+}
+
+export function pixelsFromPhysical(value: number, unit: PhysicalUnit, dpi = 300): number {
+  const safeDpi = clamp(Number.isFinite(dpi) ? dpi : 300, 36, 1200);
+  const safeValue = Math.max(1, Number.isFinite(value) ? value : 1);
+  if (unit === 'px') return Math.round(safeValue);
+  const inches = unit === 'in' ? safeValue : unit === 'cm' ? safeValue / 2.54 : safeValue / 25.4;
+  return Math.max(1, Math.round(inches * safeDpi));
+}
+
+async function canvasBlob(canvas: HTMLCanvasElement, format: OutputFormat, quality = 0.86): Promise<Blob> {
+  let target = canvas;
+  let flattenedCreated = false;
+  if (format === 'image/jpeg') {
+    const flattened = makeCanvas(canvas.width, canvas.height);
+    const ctx = flattened.getContext('2d');
+    if (ctx) {
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(0, 0, flattened.width, flattened.height);
+      ctx.drawImage(canvas, 0, 0);
+      target = flattened;
+      flattenedCreated = true;
+    } else {
+      releaseCanvas(flattened);
+    }
+  }
+  try {
+    const q = format === 'image/png' ? undefined : clamp(quality, 0.04, 0.98);
+    return await new Promise<Blob>((resolve, reject) => {
+      target.toBlob(blob => (blob ? resolve(blob) : reject(new Error('Image export failed.'))), format, q);
+    });
+  } finally {
+    if (flattenedCreated) releaseCanvas(target);
+  }
+}
+
+async function bestLossyAtSize(canvas: HTMLCanvasElement, format: OutputFormat, targetBytes: number) {
+  let low = 0.04;
+  let high = 0.96;
+  let bestUnder: Blob | null = null;
+  let smallest: Blob | null = null;
+
+  for (let index = 0; index < 8; index++) {
+    const quality = Number(((low + high) / 2).toFixed(3));
+    const blob = await canvasBlob(canvas, format, quality);
+    if (!smallest || blob.size < smallest.size) smallest = blob;
+    if (blob.size <= targetBytes) {
+      bestUnder = blob;
+      low = quality;
+    } else {
+      high = quality;
+    }
+  }
+  const lowBlob = await canvasBlob(canvas, format, 0.04);
+  if (!smallest || lowBlob.size < smallest.size) smallest = lowBlob;
+  if (lowBlob.size <= targetBytes && (!bestUnder || lowBlob.size > bestUnder.size)) {
+    bestUnder = lowBlob;
+  }
+
+  return {
+    blob: bestUnder || smallest!,
+    reached: Boolean(bestUnder && bestUnder.size <= targetBytes),
+  };
+}
+
+// Manage a singleton Web Worker for off-main-thread processing with cancellation support.
+let activeWorker: Worker | null = null;
+let workerJobSeq = 0;
+
+function getOrCreateWorker(): Worker | null {
+  if (typeof window === 'undefined' || typeof Worker === 'undefined' || typeof OffscreenCanvas === 'undefined') {
+    return null;
+  }
+  if (!activeWorker) {
+    try {
+      activeWorker = new Worker('/workers/image-worker.js');
+    } catch {
+      return null;
+    }
+  }
+  return activeWorker;
+}
+
+function terminateActiveWorker() {
+  if (activeWorker) {
+    try {
+      activeWorker.terminate();
+    } catch {}
+    activeWorker = null;
+  }
+}
+
+async function runWorkerTask<T>(
+  action: string,
+  payload: Record<string, unknown>,
+  signal?: AbortSignal,
+  onProgress?: (pct: number) => void
+): Promise<T | null> {
+  const worker = getOrCreateWorker();
+  if (!worker) return null;
+  if (signal?.aborted) throw new Error('Processing cancelled.');
+
+  const jobId = ++workerJobSeq;
+  return new Promise<T | null>((resolve, reject) => {
+    const onAbort = () => {
+      cleanup();
+      terminateActiveWorker();
+      reject(new Error('Processing cancelled.'));
+    };
+
+    const onMessage = (event: MessageEvent) => {
+      const data = event.data || {};
+      if (data.id !== jobId) return;
+      if (typeof data.progress === 'number') {
+        onProgress?.(data.progress);
+        return;
+      }
+      cleanup();
+      if (data.ok) {
+        resolve(data.result as T);
+      } else {
+        resolve(null); // Fall back cleanly to main thread if worker couldn't decode (e.g. SVG)
+      }
+    };
+
+    const onError = () => {
+      cleanup();
+      terminateActiveWorker();
+      resolve(null);
+    };
+
+    function cleanup() {
+      worker?.removeEventListener('message', onMessage);
+      worker?.removeEventListener('error', onError);
+      signal?.removeEventListener('abort', onAbort);
+    }
+
+    worker.addEventListener('message', onMessage);
+    worker.addEventListener('error', onError);
+    signal?.addEventListener('abort', onAbort, { once: true });
+    worker.postMessage({ id: jobId, action, payload });
+  });
+}
+
+export async function compressImage(file: File, options: CompressOptions): Promise<ImageProcessResult> {
+  if (options.signal?.aborted) throw new Error('Processing cancelled.');
+
+  // Offload to OffscreenCanvas Web Worker when supported and file is not SVG
+  if (!/\.svg$/i.test(file.name) && file.type !== 'image/svg+xml') {
+    const workerRes = await runWorkerTask<ImageProcessResult>(
+      'compress',
+      {
+        file,
+        options: {
+          mode: options.mode,
+          targetBytes: options.targetBytes,
+          format: options.format,
+          quality: options.quality,
+        },
+      },
+      options.signal,
+      options.onProgress
+    );
+    if (workerRes && workerRes.blob) {
+      return workerRes;
+    }
+  }
+
+  const source = await decode(file);
+  try {
+    const format: OutputFormat =
+      options.format ||
+      (file.type === 'image/jpeg' || file.type === 'image/png' || file.type === 'image/webp'
+        ? file.type
+        : 'image/webp');
+    const safe = fitToSafeCanvas(source.width, source.height);
+    const capNote = safe.capped
+      ? ` Capped to ${safe.width} × ${safe.height} px (16.7 MP browser canvas safety limit).`
+      : '';
+
+    if (options.mode === 'auto' || !options.targetBytes) {
+      const canvas = makeCanvas(safe.width, safe.height);
+      try {
+        const ctx = canvas.getContext('2d')!;
+        ctx.imageSmoothingEnabled = true;
+        ctx.imageSmoothingQuality = 'high';
+        ctx.drawImage(source.source, 0, 0, canvas.width, canvas.height);
+        const blob = await canvasBlob(canvas, format, options.quality ?? 0.8);
+        return {
+          blob,
+          width: canvas.width,
+          height: canvas.height,
+          type: format,
+          note: capNote.trim() || undefined,
+        };
+      } finally {
+        releaseCanvas(canvas);
+      }
+    }
+
+    const target = Math.max(1024, Math.round(options.targetBytes));
+    let scale = 1;
+    let smallest: { blob: Blob; width: number; height: number } | null = null;
+
+    for (let pass = 0; pass < 11; pass++) {
+      if (options.signal?.aborted) throw new Error('Processing cancelled.');
+      const width = Math.max(16, Math.round(safe.width * scale));
+      const height = Math.max(16, Math.round(safe.height * scale));
+      const canvas = makeCanvas(width, height);
+      try {
+        const ctx = canvas.getContext('2d')!;
+        ctx.imageSmoothingEnabled = true;
+        ctx.imageSmoothingQuality = 'high';
+        ctx.drawImage(source.source, 0, 0, width, height);
+
+        if (format === 'image/png') {
+          const single = await canvasBlob(canvas, format, 1);
+          const reached = single.size <= target;
+          return {
+            blob: single,
+            width,
+            height,
+            type: format,
+            targetBytes: target,
+            targetReached: reached,
+            note: reached
+              ? `Target reached: ${Math.max(1, Math.round(single.size / 1024))} KB.${capNote}`
+              : `PNG is lossless (${Math.max(1, Math.round(single.size / 1024))} KB vs ${Math.round(target / 1024)} KB target). Switch Output format to JPG or WebP to reach smaller KB limits.${capNote}`,
+          };
+        }
+
+        const candidate = await bestLossyAtSize(canvas, format, target);
+        if (!smallest || candidate.blob.size < smallest.blob.size) {
+          smallest = { blob: candidate.blob, width, height };
+        }
+        if (candidate.reached && candidate.blob.size <= target) {
+          const scaleNote = scale < 0.999 ? ` Scaled to ${width} × ${height} px to meet target.` : '';
+          return {
+            blob: candidate.blob,
+            width,
+            height,
+            type: format,
+            targetBytes: target,
+            targetReached: true,
+            note: `Target reached: ${Math.max(1, Math.round(candidate.blob.size / 1024))} KB (limit: ${Math.max(1, Math.round(target / 1024))} KB).${scaleNote}${capNote}`,
+          };
+        }
+
+        const ratio = Math.sqrt(target / Math.max(target + 1, candidate.blob.size));
+        scale *= clamp(ratio * 0.88, 0.52, 0.86);
+        if (width <= 32 || height <= 32) break;
+      } finally {
+        releaseCanvas(canvas);
+      }
+    }
+
+    const fallback = smallest!;
+    const reached = fallback.blob.size <= target;
+    return {
+      blob: fallback.blob,
+      width: fallback.width,
+      height: fallback.height,
+      type: format,
+      targetBytes: target,
+      targetReached: reached,
+      note: reached
+        ? `Target reached: ${Math.max(1, Math.round(fallback.blob.size / 1024))} KB.${capNote}`
+        : `Closest achievable size is ${Math.max(1, Math.round(fallback.blob.size / 1024))} KB (target ${Math.max(1, Math.round(target / 1024))} KB could not be met even at minimum resolution and quality).${capNote}`,
+    };
+  } finally {
+    source.close();
+  }
+}
+
+function parseHexRgb(hex: string): [number, number, number] {
+  const clean = hex.replace('#', '').trim();
+  const full =
+    clean.length === 3
+      ? clean
+          .split('')
+          .map(ch => ch + ch)
+          .join('')
+      : clean.padEnd(6, 'f').slice(0, 6);
+  const num = Number.parseInt(full, 16);
+  if (!Number.isFinite(num)) return [255, 255, 255];
+  return [(num >> 16) & 255, (num >> 8) & 255, num & 255];
+}
+
+function removeEdgeConnectedPaperBackground(
+  ctx: CanvasRenderingContext2D,
+  width: number,
+  height: number,
+  tolerance = 38,
+  replacementHex?: string
+): { busyBackground: boolean } {
+  const image = ctx.getImageData(0, 0, width, height);
+  const d = image.data;
+  const total = width * height;
+  if (total <= 0) return { busyBackground: false };
+
+  // Sample outer perimeter along top and upper 65% of left/right borders (avoiding bottom clothing)
+  const samples: Array<[number, number, number]> = [];
+  const pushSample = (x: number, y: number) => {
+    const idx = (clamp(Math.round(y), 0, height - 1) * width + clamp(Math.round(x), 0, width - 1)) * 4;
+    if (d[idx + 3]! > 16) samples.push([d[idx]!, d[idx + 1]!, d[idx + 2]!]);
+  };
+  const steps = Math.min(24, Math.max(6, Math.floor(Math.min(width, height) / 12)));
+  for (let i = 0; i < steps; i++) {
+    const t = i / Math.max(1, steps - 1);
+    pushSample(t * (width - 1), 0);
+    pushSample(0, t * (height * 0.65));
+    pushSample(width - 1, t * (height * 0.65));
+  }
+
+  let bgR = 255;
+  let bgG = 255;
+  let bgB = 255;
+  let variance = 0;
+  if (samples.length > 0) {
+    const rs = samples.map(s => s[0]).sort((a, b) => a - b);
+    const gs = samples.map(s => s[1]).sort((a, b) => a - b);
+    const bs = samples.map(s => s[2]).sort((a, b) => a - b);
+    const mid = Math.floor(samples.length / 2);
+    bgR = rs[mid]!;
+    bgG = gs[mid]!;
+    bgB = bs[mid]!;
+    for (const [r, g, b] of samples) {
+      variance += Math.hypot(r - bgR, g - bgG, b - bgB);
+    }
+    variance /= samples.length;
+  }
+
+  const maxDist = clamp(tolerance, 5, 220) * 1.45;
+  const visited = new Uint8Array(total);
+  const queue = new Int32Array(total);
+  let head = 0;
+  let tail = 0;
+
+  const matchesBg = (pixelIdx: number) => {
+    const i = pixelIdx * 4;
+    if (d[i + 3]! <= 12) return true;
+    const dist = Math.hypot(d[i]! - bgR, d[i + 1]! - bgG, d[i + 2]! - bgB);
+    return dist <= maxDist;
+  };
+
+  const enqueue = (x: number, y: number) => {
+    if (x < 0 || x >= width || y < 0 || y >= height) return;
+    const p = y * width + x;
+    if (visited[p] || !matchesBg(p)) return;
+    visited[p] = 1;
+    queue[tail++] = p;
+  };
+
+  for (let x = 0; x < width; x++) {
+    enqueue(x, 0);
+    enqueue(x, height - 1);
+  }
+  for (let y = 1; y < height - 1; y++) {
+    enqueue(0, y);
+    enqueue(width - 1, y);
+  }
+
+  while (head < tail) {
+    const p = queue[head++]!;
+    const x = p % width;
+    const y = (p - x) / width;
+    if (x > 0) enqueue(x - 1, y);
+    if (x + 1 < width) enqueue(x + 1, y);
+    if (y > 0) enqueue(x, y - 1);
+    if (y + 1 < height) enqueue(x, y + 1);
+  }
+
+  const fillRgb = replacementHex ? parseHexRgb(replacementHex) : null;
+  for (let p = 0; p < total; p++) {
+    if (!visited[p]) continue;
+    const i = p * 4;
+    if (fillRgb) {
+      d[i] = fillRgb[0];
+      d[i + 1] = fillRgb[1];
+      d[i + 2] = fillRgb[2];
+      d[i + 3] = 255;
+    } else {
+      d[i + 3] = 0;
+    }
+  }
+
+  // Soft 1-pixel boundary feathering for smooth transitions
+  const softDist = maxDist * 1.28;
+  for (let y = 1; y < height - 1; y++) {
+    for (let x = 1; x < width - 1; x++) {
+      const p = y * width + x;
+      if (visited[p]) continue;
+      const touchesBg = visited[p - 1] || visited[p + 1] || visited[p - width] || visited[p + width];
+      if (!touchesBg) continue;
+      const i = p * 4;
+      const dist = Math.hypot(d[i]! - bgR, d[i + 1]! - bgG, d[i + 2]! - bgB);
+      if (dist < softDist) {
+        const ratio = clamp((dist - maxDist * 0.6) / Math.max(1, softDist - maxDist * 0.6), 0.25, 0.9);
+        if (fillRgb) {
+          d[i] = Math.round(d[i]! * ratio + fillRgb[0] * (1 - ratio));
+          d[i + 1] = Math.round(d[i + 1]! * ratio + fillRgb[1] * (1 - ratio));
+          d[i + 2] = Math.round(d[i + 2]! * ratio + fillRgb[2] * (1 - ratio));
+        } else {
+          d[i + 3] = Math.round(d[i + 3]! * ratio);
+        }
+      }
+    }
+  }
+
+  ctx.putImageData(image, 0, 0);
+  const replacedRatio = tail / Math.max(1, total);
+  return { busyBackground: variance > 42 || replacedRatio < 0.04 };
+}
+
+function trimSignatureCanvas(canvas: HTMLCanvasElement, margin = 12): HTMLCanvasElement {
+  const ctx = canvas.getContext('2d')!;
+  const width = canvas.width;
+  const height = canvas.height;
+  const data = ctx.getImageData(0, 0, width, height).data;
+  let minX = width;
+  let minY = height;
+  let maxX = -1;
+  let maxY = -1;
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      const i = (y * width + x) * 4;
+      const alpha = data[i + 3]!;
+      const lum = 0.299 * data[i]! + 0.587 * data[i + 1]! + 0.114 * data[i + 2]!;
+      if (alpha > 20 && lum < 245) {
+        if (x < minX) minX = x;
+        if (y < minY) minY = y;
+        if (x > maxX) maxX = x;
+        if (y > maxY) maxY = y;
+      }
+    }
+  }
+  if (maxX < minX || maxY < minY) return canvas;
+  const pad = clamp(Math.round(margin), 0, 200);
+  const sx = Math.max(0, minX - pad);
+  const sy = Math.max(0, minY - pad);
+  const sw = Math.min(width - sx, maxX - minX + 1 + pad * 2);
+  const sh = Math.min(height - sy, maxY - minY + 1 + pad * 2);
+  const out = makeCanvas(sw, sh);
+  out.getContext('2d')!.drawImage(canvas, sx, sy, sw, sh, 0, 0, sw, sh);
+  releaseCanvas(canvas);
+  return out;
+}
+
+function drawCoverCrop(
+  ctx: CanvasRenderingContext2D,
+  source: CanvasImageSource,
+  sourceWidth: number,
+  sourceHeight: number,
+  targetWidth: number,
+  targetHeight: number,
+  anchorX = 0.5,
+  anchorY = 0.45,
+  zoom = 1
+) {
+  const targetRatio = targetWidth / targetHeight;
+  const sourceRatio = sourceWidth / sourceHeight;
+  let cropW = sourceWidth;
+  let cropH = sourceHeight;
+  if (sourceRatio > targetRatio) cropW = Math.round(sourceHeight * targetRatio);
+  else cropH = Math.round(sourceWidth / targetRatio);
+  const safeZoom = clamp(zoom || 1, 1, 3);
+  cropW = Math.max(1, Math.round(cropW / safeZoom));
+  cropH = Math.max(1, Math.round(cropH / safeZoom));
+  const sx = Math.round((sourceWidth - cropW) * clamp(anchorX, 0, 1));
+  const sy = Math.round((sourceHeight - cropH) * clamp(anchorY, 0, 1));
+  ctx.drawImage(source, sx, sy, cropW, cropH, 0, 0, targetWidth, targetHeight);
+}
+
+function buildA4PassportSheet(
+  tile: HTMLCanvasElement,
+  dpi: number,
+  requestedCount: number,
+  marginMm: number,
+  spacingMm: number
+): { sheet: HTMLCanvasElement; placed: number; cols: number; rows: number; sheetDpi: number } {
+  // Cap A4 sheet DPI so 210 × 297 mm always stays within the 16.77 MP iOS Safari canvas limit (max ~410 DPI)
+  const maxSafeA4Dpi = Math.floor(Math.sqrt(MAX_CANVAS_PIXELS / ((210 / 25.4) * (297 / 25.4))));
+  const sheetDpi = clamp(dpi, 72, Math.min(600, maxSafeA4Dpi));
+  const dpiScale = sheetDpi / Math.max(1, dpi);
+
+  const sheetW = pixelsFromPhysical(210, 'mm', sheetDpi);
+  const sheetH = pixelsFromPhysical(297, 'mm', sheetDpi);
+  const marginPx = Math.max(0, Math.round((clamp(marginMm, 0, 40) / 25.4) * sheetDpi));
+  const gapPx = Math.max(0, Math.round((clamp(spacingMm, 0, 30) / 25.4) * sheetDpi));
+
+  const tileW = Math.max(1, Math.round(tile.width * dpiScale));
+  const tileH = Math.max(1, Math.round(tile.height * dpiScale));
+  const usableW = Math.max(1, sheetW - marginPx * 2);
+  const usableH = Math.max(1, sheetH - marginPx * 2);
+
+  if (tileW > usableW || tileH > usableH) {
+    throw new Error(
+      'Single photo dimensions exceed the printable A4 area. Reduce the photo dimensions or sheet margin.'
+    );
+  }
+
+  const cols = Math.floor((usableW + gapPx) / (tileW + gapPx));
+  const rows = Math.floor((usableH + gapPx) / (tileH + gapPx));
+  if (cols < 1 || rows < 1) {
+    throw new Error('Photo dimensions are too large to fit on an A4 sheet with the current margin.');
+  }
+
+  const maxFit = cols * rows;
+  const count = requestedCount <= 0 ? maxFit : Math.min(requestedCount, maxFit);
+
+  const sheet = makeCanvas(sheetW, sheetH);
+  const ctx = sheet.getContext('2d')!;
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(0, 0, sheetW, sheetH);
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = 'high';
+
+  const usedCols = Math.min(cols, count);
+  const usedRows = Math.ceil(count / usedCols);
+  const totalGridW = usedCols * tileW + Math.max(0, usedCols - 1) * gapPx;
+  const startX = Math.max(marginPx, Math.round((sheetW - totalGridW) / 2));
+  const startY = marginPx;
+
+  let placed = 0;
+  const strokeWidth = Math.max(1, Math.round(sheetDpi / 300));
+  ctx.strokeStyle = '#cbd5e1';
+  ctx.lineWidth = strokeWidth;
+
+  for (let r = 0; r < usedRows && placed < count; r++) {
+    for (let c = 0; c < usedCols && placed < count; c++) {
+      const x = startX + c * (tileW + gapPx);
+      const y = startY + r * (tileH + gapPx);
+      ctx.drawImage(tile, 0, 0, tile.width, tile.height, x, y, tileW, tileH);
+      ctx.strokeRect(x + 0.5, y + 0.5, tileW - 1, tileH - 1);
+      placed++;
+    }
+  }
+
+  return { sheet, placed, cols: usedCols, rows: usedRows, sheetDpi };
+}
+
+export async function processImage(
+  file: File,
+  tool: ImageTool,
+  options: ImageOptions
+): Promise<ImageProcessResult> {
+  const source = await decode(file);
+  try {
+    const format: OutputFormat =
+      tool.workflow === 'to-jpg'
+        ? 'image/jpeg'
+        : ['remove-bg', 'signature-maker', 'signature-trim', 'signature-remove-bg', 'signature-png'].includes(
+            tool.workflow
+          )
+        ? 'image/png'
+        : options.format || 'image/webp';
+    const quality = options.quality ?? 0.9;
+    const dpi = clamp(Math.round(options.dpi || tool.preset?.dpi || 300), 36, 1200);
+
+    if (tool.workflow === 'dpi') {
+      const safe = fitToSafeCanvas(source.width, source.height);
+      const canvas = makeCanvas(safe.width, safe.height);
+      try {
+        canvas.getContext('2d')!.drawImage(source.source, 0, 0, safe.width, safe.height);
+        const outFormat: OutputFormat = format === 'image/png' ? 'image/png' : 'image/jpeg';
+        const raw = await canvasBlob(canvas, outFormat, quality);
+        const withDpi = await setBlobDpi(raw, dpi);
+        return {
+          blob: withDpi,
+          width: canvas.width,
+          height: canvas.height,
+          type: outFormat,
+          dpi,
+          note: `DPI metadata set to ${dpi} DPI.`,
+        };
+      } finally {
+        releaseCanvas(canvas);
+      }
+    }
+
+    if (tool.workflow === 'resize-px') {
+      const requestedW = Math.round(options.width || source.width);
+      const requestedH = Math.round(options.height || source.height);
+      const safe = fitToSafeCanvas(requestedW, requestedH);
+      const canvas = makeCanvas(safe.width, safe.height);
+      try {
+        const ctx = canvas.getContext('2d')!;
+        ctx.imageSmoothingEnabled = true;
+        ctx.imageSmoothingQuality = 'high';
+        ctx.drawImage(source.source, 0, 0, safe.width, safe.height);
+        return {
+          blob: await canvasBlob(canvas, format, quality),
+          width: safe.width,
+          height: safe.height,
+          type: format,
+          note: safe.capped
+            ? `Capped from ${requestedW} × ${requestedH} px to ${safe.width} × ${safe.height} px (16.7 MP browser canvas safety limit).`
+            : undefined,
+        };
+      } finally {
+        releaseCanvas(canvas);
+      }
+    }
+
+    if (
+      tool.workflow === 'resize-physical' ||
+      tool.workflow === 'photo-size' ||
+      tool.workflow === 'signature-resize'
+    ) {
+      const unit: PhysicalUnit = options.unit || tool.defaultUnit || 'cm';
+      const requestedW = pixelsFromPhysical(options.physicalWidth || 3.5, unit, dpi);
+      const requestedH = pixelsFromPhysical(options.physicalHeight || 4.5, unit, dpi);
+      const safe = fitToSafeCanvas(requestedW, requestedH);
+      const canvas = makeCanvas(safe.width, safe.height);
+      try {
+        const ctx = canvas.getContext('2d')!;
+        ctx.imageSmoothingEnabled = true;
+        ctx.imageSmoothingQuality = 'high';
+        if (format === 'image/jpeg') {
+          ctx.fillStyle = '#ffffff';
+          ctx.fillRect(0, 0, safe.width, safe.height);
+        }
+        ctx.drawImage(source.source, 0, 0, safe.width, safe.height);
+        const raw = await canvasBlob(canvas, format, quality);
+        const withDpi = format === 'image/jpeg' || format === 'image/png' ? await setBlobDpi(raw, dpi) : raw;
+        return {
+          blob: withDpi,
+          width: safe.width,
+          height: safe.height,
+          type: format,
+          dpi,
+          note: safe.capped
+            ? `${safe.width} × ${safe.height} px (capped to 16.7 MP safe canvas limit at ${dpi} DPI).`
+            : `${safe.width} × ${safe.height} px at ${dpi} DPI.`,
+        };
+      } finally {
+        releaseCanvas(canvas);
+      }
+    }
+
+    if (tool.workflow === 'photo-preset') {
+      const preset = tool.preset || { width: 35, height: 45, unit: 'mm' as PhysicalUnit, dpi: 300 };
+      const unit: PhysicalUnit = options.unit || preset.unit;
+      const pWidth = Number(options.physicalWidth || preset.width);
+      const pHeight = Number(options.physicalHeight || preset.height);
+      const requestedW = pixelsFromPhysical(pWidth, unit, dpi);
+      const requestedH = pixelsFromPhysical(pHeight, unit, dpi);
+      const safeTile = fitToSafeCanvas(requestedW, requestedH);
+      const width = safeTile.width;
+      const height = safeTile.height;
+
+      let workSource: CanvasImageSource = source.source;
+      let workW = source.width;
+      let workH = source.height;
+      let rotatedCanvas: HTMLCanvasElement | null = null;
+      let bgCanvas: HTMLCanvasElement | null = null;
+      let canvas: HTMLCanvasElement | null = null;
+
+      try {
+        const angle = ((options.angle ?? 0) % 360 + 360) % 360;
+        if (angle === 90 || angle === 180 || angle === 270) {
+          const rotSafe = fitToSafeCanvas(
+            angle === 90 || angle === 270 ? source.height : source.width,
+            angle === 90 || angle === 270 ? source.width : source.height
+          );
+          rotatedCanvas = makeCanvas(rotSafe.width, rotSafe.height);
+          const rCtx = rotatedCanvas.getContext('2d')!;
+          rCtx.translate(rotatedCanvas.width / 2, rotatedCanvas.height / 2);
+          rCtx.rotate((angle * Math.PI) / 180);
+          rCtx.drawImage(source.source, -source.width / 2, -source.height / 2);
+          workSource = rotatedCanvas;
+          workW = rotatedCanvas.width;
+          workH = rotatedCanvas.height;
+        }
+
+        let busyBgWarning = '';
+        if (options.replaceBackground) {
+          const bgSafe = fitToSafeCanvas(workW, workH);
+          bgCanvas = makeCanvas(bgSafe.width, bgSafe.height);
+          const bgCtx = bgCanvas.getContext('2d')!;
+          bgCtx.drawImage(workSource, 0, 0, bgSafe.width, bgSafe.height);
+          const { busyBackground } = removeEdgeConnectedPaperBackground(
+            bgCtx,
+            bgSafe.width,
+            bgSafe.height,
+            options.amount ?? 38,
+            options.backgroundColor || '#ffffff'
+          );
+          if (busyBackground) {
+            busyBgWarning = ' Note: Original background looks busy or uneven; background fill works best on plain, evenly lit walls.';
+          }
+          workSource = bgCanvas;
+          workW = bgSafe.width;
+          workH = bgSafe.height;
+        }
+
+        canvas = makeCanvas(width, height);
+        const ctx = canvas.getContext('2d')!;
+        ctx.imageSmoothingEnabled = true;
+        ctx.imageSmoothingQuality = 'high';
+        ctx.fillStyle = options.backgroundColor || '#ffffff';
+        ctx.fillRect(0, 0, width, height);
+
+        const b = options.brightness ?? 100;
+        const c = options.contrast ?? 100;
+        if (b !== 100 || c !== 100) {
+          ctx.filter = `brightness(${b}%) contrast(${c}%)`;
+        }
+        drawCoverCrop(
+          ctx,
+          workSource,
+          workW,
+          workH,
+          width,
+          height,
+          options.anchorX ?? 0.5,
+          options.anchorY ?? 0.42,
+          options.zoom ?? 1
+        );
+        ctx.filter = 'none';
+
+        if (options.a4Sheet) {
+          const { sheet, placed, cols, rows, sheetDpi } = buildA4PassportSheet(
+            canvas,
+            dpi,
+            options.a4Count ?? 8,
+            options.a4MarginMm ?? 10,
+            options.a4SpacingMm ?? 4
+          );
+          try {
+            const rawSheet = await canvasBlob(sheet, format, quality);
+            const withDpi =
+              format === 'image/jpeg' || format === 'image/png' ? await setBlobDpi(rawSheet, sheetDpi) : rawSheet;
+            return {
+              blob: withDpi,
+              width: sheet.width,
+              height: sheet.height,
+              type: format,
+              dpi: sheetDpi,
+              note: `A4 print sheet ready: ${placed} photos (${cols} × ${rows} grid, each ${pWidth} × ${pHeight} ${unit}) on 210 × 297 mm at ${sheetDpi} DPI.${busyBgWarning}`,
+            };
+          } finally {
+            releaseCanvas(sheet);
+          }
+        }
+
+        const targetKb = Number(options.targetKb || 0);
+        if (targetKb > 0 && format !== 'image/png') {
+          const targetBytes = Math.max(2048, Math.round(targetKb * 1024));
+          // Reserve 32 bytes for JFIF DPI header insertion so final file never exceeds targetBytes
+          const searchBudget = Math.max(1024, targetBytes - 32);
+          const candidate = await bestLossyAtSize(canvas, format, searchBudget);
+          const withDpi = format === 'image/jpeg' ? await setBlobDpi(candidate.blob, dpi) : candidate.blob;
+          const strictReached = withDpi.size <= targetBytes;
+          return {
+            blob: withDpi,
+            width,
+            height,
+            type: format,
+            dpi,
+            targetBytes,
+            targetReached: strictReached,
+            note: strictReached
+              ? `${pWidth} × ${pHeight} ${unit} (${width} × ${height} px at ${dpi} DPI) · Target ≤ ${targetKb} KB reached (${Math.max(1, Math.round(withDpi.size / 1024))} KB).${busyBgWarning}`
+              : `${pWidth} × ${pHeight} ${unit} (${width} × ${height} px at ${dpi} DPI) · Closest size at full resolution is ${Math.max(1, Math.round(withDpi.size / 1024))} KB (target ${targetKb} KB).${busyBgWarning}`,
+          };
+        }
+
+        const raw = await canvasBlob(canvas, format, quality);
+        const withDpi = format === 'image/jpeg' || format === 'image/png' ? await setBlobDpi(raw, dpi) : raw;
+        return {
+          blob: withDpi,
+          width,
+          height,
+          type: format,
+          dpi,
+          note: `${pWidth} × ${pHeight} ${unit} (${width} × ${height} px at ${dpi} DPI).${busyBgWarning}`,
+        };
+      } finally {
+        releaseCanvas(rotatedCanvas);
+        releaseCanvas(bgCanvas);
+        releaseCanvas(canvas);
+      }
+    }
+
+    if (tool.workflow === 'crop') {
+      const x = clamp(Math.round(options.cropX ?? 0), 0, Math.max(0, source.width - 1));
+      const y = clamp(Math.round(options.cropY ?? 0), 0, Math.max(0, source.height - 1));
+      const width = clamp(Math.round(options.cropWidth || source.width - x), 1, source.width - x);
+      const height = clamp(Math.round(options.cropHeight || source.height - y), 1, source.height - y);
+      const safe = fitToSafeCanvas(width, height);
+      const canvas = makeCanvas(safe.width, safe.height);
+      try {
+        canvas.getContext('2d')!.drawImage(source.source, x, y, width, height, 0, 0, safe.width, safe.height);
+        return {
+          blob: await canvasBlob(canvas, format, quality),
+          width: safe.width,
+          height: safe.height,
+          type: format,
+        };
+      } finally {
+        releaseCanvas(canvas);
+      }
+    }
+
+    if (tool.workflow === 'aspect-crop') {
+      const rw = Math.max(1, options.ratioWidth || 1);
+      const rh = Math.max(1, options.ratioHeight || 1);
+      const ratio = rw / rh;
+      const sourceRatio = source.width / source.height;
+      const rawW = sourceRatio > ratio ? Math.round(source.height * ratio) : source.width;
+      const rawH = sourceRatio > ratio ? source.height : Math.round(source.width / ratio);
+      const safe = fitToSafeCanvas(rawW, rawH);
+      const canvas = makeCanvas(safe.width, safe.height);
+      try {
+        const ctx = canvas.getContext('2d')!;
+        drawCoverCrop(
+          ctx,
+          source.source,
+          source.width,
+          source.height,
+          safe.width,
+          safe.height,
+          options.anchorX ?? 0.5,
+          options.anchorY ?? 0.5,
+          options.zoom ?? 1
+        );
+        return {
+          blob: await canvasBlob(canvas, format, quality),
+          width: safe.width,
+          height: safe.height,
+          type: format,
+        };
+      } finally {
+        releaseCanvas(canvas);
+      }
+    }
+
+    if (tool.workflow === 'rotate') {
+      const angle = ((options.angle ?? 90) % 360 + 360) % 360;
+      const swap = angle === 90 || angle === 270;
+      const safe = fitToSafeCanvas(swap ? source.height : source.width, swap ? source.width : source.height);
+      const canvas = makeCanvas(safe.width, safe.height);
+      try {
+        const ctx = canvas.getContext('2d')!;
+        ctx.save();
+        ctx.translate(safe.width / 2, safe.height / 2);
+        ctx.rotate((angle * Math.PI) / 180);
+        ctx.scale(options.flip === 'horizontal' ? -1 : 1, options.flip === 'vertical' ? -1 : 1);
+        const drawW = swap ? safe.height : safe.width;
+        const drawH = swap ? safe.width : safe.height;
+        ctx.drawImage(source.source, -drawW / 2, -drawH / 2, drawW, drawH);
+        ctx.restore();
+        return {
+          blob: await canvasBlob(canvas, format, quality),
+          width: safe.width,
+          height: safe.height,
+          type: format,
+        };
+      } finally {
+        releaseCanvas(canvas);
+      }
+    }
+
+    if (tool.workflow === 'upscale') {
+      const scale = clamp(options.amount || 2, 2, 4);
+      const requestedW = Math.round(source.width * scale);
+      const requestedH = Math.round(source.height * scale);
+      const safe = fitToSafeCanvas(requestedW, requestedH);
+      const canvas = makeCanvas(safe.width, safe.height);
+      try {
+        const ctx = canvas.getContext('2d')!;
+        ctx.imageSmoothingEnabled = true;
+        ctx.imageSmoothingQuality = 'high';
+        ctx.drawImage(source.source, 0, 0, safe.width, safe.height);
+        return {
+          blob: await canvasBlob(canvas, format, quality),
+          width: safe.width,
+          height: safe.height,
+          type: format,
+          note: safe.capped
+            ? `Upscaled to ${safe.width} × ${safe.height} px (capped from ${requestedW} × ${requestedH} px to stay within the 16.7 MP browser canvas safety limit).`
+            : `Upscaled ${scale}× to ${safe.width} × ${safe.height} px.`,
+        };
+      } finally {
+        releaseCanvas(canvas);
+      }
+    }
+
+    const safeBase = fitToSafeCanvas(source.width, source.height);
+    let canvas: HTMLCanvasElement | null = makeCanvas(safeBase.width, safeBase.height);
+    try {
+      const ctx = canvas.getContext('2d')!;
+
+      if (tool.workflow === 'photo-editor') {
+        const b = options.brightness ?? 100;
+        const c = options.contrast ?? 100;
+        const s = options.saturation ?? 100;
+        const blur = options.blur ?? 0;
+        ctx.filter = `brightness(${b}%) contrast(${c}%) saturate(${s}%) blur(${blur}px)`;
+      }
+      ctx.drawImage(source.source, 0, 0, canvas.width, canvas.height);
+      ctx.filter = 'none';
+
+      if (tool.workflow === 'text-overlay') {
+        const text = (options.text || 'Sample Text').trim().slice(0, 140);
+        const fontSize = clamp(options.fontSize || Math.round(canvas.width / 18), 14, 220);
+        const pad = Math.max(18, Math.round(fontSize * 0.75));
+        ctx.save();
+        ctx.globalAlpha = clamp(options.opacity ?? 0.85, 0.08, 1);
+        ctx.font = `800 ${fontSize}px Inter, system-ui, sans-serif`;
+        ctx.fillStyle = options.color || '#ffffff';
+        ctx.strokeStyle = 'rgba(15,23,42,.55)';
+        ctx.lineWidth = Math.max(2, Math.round(fontSize * 0.08));
+        const pos = options.position || 'center';
+        let x = canvas.width / 2;
+        let y = canvas.height / 2;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        if (pos === 'bottom-right') {
+          x = canvas.width - pad;
+          y = canvas.height - pad;
+          ctx.textAlign = 'right';
+          ctx.textBaseline = 'bottom';
+        } else if (pos === 'bottom-left') {
+          x = pad;
+          y = canvas.height - pad;
+          ctx.textAlign = 'left';
+          ctx.textBaseline = 'bottom';
+        } else if (pos === 'top-right') {
+          x = canvas.width - pad;
+          y = pad;
+          ctx.textAlign = 'right';
+          ctx.textBaseline = 'top';
+        } else if (pos === 'top-left') {
+          x = pad;
+          y = pad;
+          ctx.textAlign = 'left';
+          ctx.textBaseline = 'top';
+        }
+        ctx.strokeText(text, x, y);
+        ctx.fillText(text, x, y);
+        ctx.restore();
+      }
+
+      const workflowKey = String(tool.workflow);
+      if (
+        workflowKey === 'remove-bg' ||
+        tool.workflow === 'signature-remove-bg' ||
+        tool.workflow === 'signature-maker' ||
+        tool.workflow === 'signature-png'
+      ) {
+        removeEdgeConnectedPaperBackground(ctx, canvas.width, canvas.height, options.amount ?? 42);
+      }
+
+      if (workflowKey === 'change-bg') {
+        removeEdgeConnectedPaperBackground(
+          ctx,
+          canvas.width,
+          canvas.height,
+          options.amount ?? 42,
+          options.backgroundColor || '#ffffff'
+        );
+      }
+
+      if (
+        tool.workflow === 'signature-maker' ||
+        tool.workflow === 'signature-trim' ||
+        tool.workflow === 'signature-remove-bg'
+      ) {
+        canvas = trimSignatureCanvas(canvas, options.trimMargin ?? 12);
+      }
+
+      const blob = await canvasBlob(canvas, format, quality);
+
+      if (tool.workflow === 'remove-metadata') {
+        let verifiedClean = true;
+        if (format === 'image/jpeg') {
+          const outBytes = new Uint8Array(await blob.slice(0, Math.min(blob.size, 65536)).arrayBuffer());
+          const check = inspectJpegBinary(outBytes);
+          verifiedClean = !check.hasExifOrAppMeta;
+        }
+        return {
+          blob,
+          width: canvas.width,
+          height: canvas.height,
+          type: format,
+          note: verifiedClean
+            ? 'EXIF, camera, and GPS metadata stripped and binary-verified clean.'
+            : 'Re-encoded from canvas pixels.',
+        };
+      }
+
+      return {
+        blob,
+        width: canvas.width,
+        height: canvas.height,
+        type: format,
+        note:
+          tool.workflow === 'dimension-check' || tool.workflow === 'quality-check'
+            ? `${canvas.width} × ${canvas.height} px · ${Math.max(1, Math.round(blob.size / 1024))} KB`
+            : undefined,
+      };
+    } finally {
+      releaseCanvas(canvas);
+    }
+  } finally {
+    source.close();
+  }
+}
+
+async function setBlobDpi(blob: Blob, dpi: number): Promise<Blob> {
+  const safeDpi = clamp(Math.round(dpi), 36, 1200);
+  const bytes = new Uint8Array(await blob.arrayBuffer());
+  if (blob.type === 'image/jpeg') return new Blob([setJpegDpi(bytes, safeDpi)], { type: blob.type });
+  if (blob.type === 'image/png') return new Blob([setPngDpi(bytes, safeDpi)], { type: blob.type });
   return blob;
 }
 
-export async function processImage(file: File, tool: ImageTool, options: ImageOptions = {}): Promise<ImageProcessResult> {
-  if (tool.workflow === 'compress') return compressImage(file,{mode:'auto',format:safeOutputType(tool,options.format,file.type)});
-  const decoded=await decode(file);const quality=Math.min(1,Math.max(.05,options.quality??.9));const type=safeOutputType(tool,options.format,file.type);const dpi=Math.min(1200,Math.max(1,Number(options.dpi||tool.preset?.dpi||300)));
-  try {
-    let canvas:HTMLCanvasElement;
-    if(tool.workflow==='resize-px'){
-      const rw=Number(options.width||0),rh=Number(options.height||0);let w=decoded.width,h=decoded.height;if(rw>0&&rh>0){w=rw;h=rh;}else if(rw>0){w=rw;h=Math.round(decoded.height*rw/decoded.width);}else if(rh>0){h=rh;w=Math.round(decoded.width*rh/decoded.height);}canvas=drawDecoded(decoded,w,h);
-    } else if(tool.workflow==='resize-physical'||tool.workflow==='photo-size'||tool.workflow==='signature-resize'){
-      const unit=options.unit||tool.defaultUnit||'cm';const w=pixelsFromPhysical(Number(options.physicalWidth||3.5),unit,dpi),h=pixelsFromPhysical(Number(options.physicalHeight||4.5),unit,dpi);canvas=drawDecoded(decoded,w,h);
-    } else if(tool.workflow==='crop'){
-      const x=Math.max(0,Math.min(decoded.width-1,Number(options.cropX||0))),y=Math.max(0,Math.min(decoded.height-1,Number(options.cropY||0))),w=Math.min(decoded.width-x,Math.max(1,Number(options.cropWidth||decoded.width-x))),h=Math.min(decoded.height-y,Math.max(1,Number(options.cropHeight||decoded.height-y)));canvas=makeCanvas(w,h);context2d(canvas).drawImage(decoded.source,x,y,w,h,0,0,w,h);
-    } else if(tool.workflow==='aspect-crop'){
-      const rw=Math.max(.01,Number(options.ratioWidth||1)),rh=Math.max(.01,Number(options.ratioHeight||1));const target=rw/rh;let outW=decoded.width,outH=decoded.height;if(decoded.width/decoded.height>target)outW=Math.round(decoded.height*target);else outH=Math.round(decoded.width/target);canvas=drawCover(decoded.source,decoded.width,decoded.height,outW,outH,options.anchorX??.5,options.anchorY??.5);
-    } else if(tool.workflow==='photo-preset'){
-      const unit=options.unit||tool.preset?.unit||'mm';const pw=Number(options.physicalWidth||tool.preset?.width||35),ph=Number(options.physicalHeight||tool.preset?.height||45);const w=pixelsFromPhysical(pw,unit,dpi),h=pixelsFromPhysical(ph,unit,dpi);
-      let source:CanvasImageSource=decoded.source,sw=decoded.width,sh=decoded.height;let prepared:HTMLCanvasElement|undefined;
-      if(options.replaceBackground){prepared=drawDecoded(decoded);edgeBackgroundTransparency(prepared,undefined,Number(options.amount||42));source=prepared;sw=prepared.width;sh=prepared.height;}
-      canvas=drawCover(source,sw,sh,w,h,options.anchorX??.5,options.anchorY??.42);
-      if(options.replaceBackground){const composed=makeCanvas(w,h),ctx=context2d(composed);ctx.fillStyle=options.backgroundColor||'#ffffff';ctx.fillRect(0,0,w,h);ctx.drawImage(canvas,0,0);canvas=composed;}
-    } else if(tool.workflow==='dpi'){
-      canvas=drawDecoded(decoded);
-    } else if(tool.workflow==='signature-maker'||tool.workflow==='signature-trim'||tool.workflow==='signature-png'){
-      const base=drawDecoded(decoded);
-      if(tool.workflow==='signature-maker'||tool.workflow==='signature-png') edgeBackgroundTransparency(base,undefined,Number(options.amount||48));
-      canvas=trimSignature(base,Number(options.trimMargin??12));
-    } else if(tool.workflow==='signature-remove-bg'){
-      canvas=drawDecoded(decoded);edgeBackgroundTransparency(canvas,undefined,Number(options.amount||48));canvas=trimSignature(canvas,Number(options.trimMargin??10));
-    } else if(tool.workflow==='photo-editor'){
-      canvas=makeCanvas(decoded.width,decoded.height);const ctx=context2d(canvas);ctx.filter=[`brightness(${Math.max(0,Number(options.brightness??100))}%)`,`contrast(${Math.max(0,Number(options.contrast??100))}%)`,`saturate(${Math.max(0,Number(options.saturation??100))}%)`,`blur(${Math.max(0,Number(options.blur??0))}px)`].join(' ');drawHighQuality(ctx,decoded.source,decoded.width,decoded.height);ctx.filter='none';
-    } else if(tool.workflow==='text-overlay'){
-      canvas=drawDecoded(decoded);const ctx=context2d(canvas),text=(options.text||'AJN Buzz').slice(0,250),size=Math.max(12,Number(options.fontSize||Math.max(24,Math.round(decoded.width/18)))),position=options.position||'center',margin=Math.max(18,Math.round(Math.min(decoded.width,decoded.height)*.035));const x=position.endsWith('left')?margin:position.endsWith('right')?decoded.width-margin:decoded.width/2,y=position.startsWith('top')?margin:position.startsWith('bottom')?decoded.height-margin:decoded.height/2;ctx.save();ctx.globalAlpha=Math.min(1,Math.max(.05,Number(options.opacity??.9)));ctx.font=`800 ${size}px Inter, Arial, sans-serif`;ctx.textAlign=position.endsWith('left')?'left':position.endsWith('right')?'right':'center';ctx.textBaseline=position.startsWith('top')?'top':position.startsWith('bottom')?'bottom':'middle';ctx.fillStyle=options.color||'#ffffff';ctx.shadowColor='rgba(0,0,0,.45)';ctx.shadowBlur=6;ctx.fillText(text,x,y,decoded.width*.9);ctx.restore();
-    } else if(tool.workflow==='dimension-check'||tool.workflow==='quality-check'){
-      canvas=drawDecoded(decoded);
-    } else if(tool.workflow==='upscale'){
-      const scale=Math.min(4,Math.max(2,Math.round(options.amount||2)));canvas=drawDecoded(decoded,decoded.width*scale,decoded.height*scale);
-    } else if(tool.workflow==='rotate'){
-      const angle=((Number(options.angle??90)%360)+360)%360,swap=angle===90||angle===270,w=swap?decoded.height:decoded.width,h=swap?decoded.width:decoded.height,rotated=makeCanvas(w,h),rctx=context2d(rotated);rctx.translate(w/2,h/2);rctx.rotate(angle*Math.PI/180);rctx.drawImage(decoded.source,-decoded.width/2,-decoded.height/2);const flip=options.flip||'none';if(flip==='none')canvas=rotated;else{canvas=makeCanvas(w,h);const ctx=context2d(canvas);if(flip==='horizontal'){ctx.translate(w,0);ctx.scale(-1,1);}else{ctx.translate(0,h);ctx.scale(1,-1);}ctx.drawImage(rotated,0,0);}
-    } else if(['remove-metadata','convert','to-jpg','jpg-to-png','change-bg'].includes(tool.workflow)){
-      canvas=drawDecoded(decoded);
-    } else throw new Error(`Unsupported image workflow: ${tool.workflow}`);
-    let blob=await canvasBlob(canvas,type,quality);if(tool.workflow==='dpi'||tool.workflow==='photo-preset'||tool.workflow==='resize-physical'||tool.workflow==='photo-size'||tool.workflow==='signature-resize')blob=await applyDpi(blob,type,dpi);
-    const aspect=(decoded.width/decoded.height).toFixed(2);
-    const orientation=decoded.width>decoded.height?'Landscape':decoded.width<decoded.height?'Portrait':'Square';
-    const noteText=tool.workflow==='dimension-check'?`Dimensions: ${decoded.width} × ${decoded.height} px · Aspect: ${aspect} · Orientation: ${orientation}`:tool.workflow==='quality-check'?`File Analysis: ${decoded.width} × ${decoded.height} px · Format: ${file.type||'image/unknown'} · Orientation: ${orientation}`:tool.workflow==='remove-metadata'?'Source EXIF/GPS metadata was not copied to the new image.':tool.workflow==='dpi'?`Density metadata set to ${Math.round(dpi)} DPI.`:undefined;
-    return {blob,width:canvas.width,height:canvas.height,type,note:noteText};
-  } finally { decoded.close?.(); }
+function setJpegDpi(bytes: Uint8Array, dpi: number) {
+  if (bytes.length < 4 || bytes[0] !== 0xff || bytes[1] !== 0xd8) return bytes;
+  let offset = 2;
+  while (offset + 18 < bytes.length && bytes[offset] === 0xff) {
+    const marker = bytes[offset + 1]!;
+    if (marker === 0xda || marker === 0xd9) break;
+    const length = (bytes[offset + 2]! << 8) | bytes[offset + 3]!;
+    if (
+      marker === 0xe0 &&
+      bytes[offset + 4] === 0x4a &&
+      bytes[offset + 5] === 0x46 &&
+      bytes[offset + 6] === 0x49 &&
+      bytes[offset + 7] === 0x46 &&
+      bytes[offset + 8] === 0x00
+    ) {
+      const out = bytes.slice();
+      out[offset + 11] = 1;
+      out[offset + 12] = (dpi >> 8) & 0xff;
+      out[offset + 13] = dpi & 0xff;
+      out[offset + 14] = (dpi >> 8) & 0xff;
+      out[offset + 15] = dpi & 0xff;
+      return out;
+    }
+    offset += 2 + length;
+  }
+  const jfif = new Uint8Array([
+    0xff,
+    0xe0,
+    0x00,
+    0x10,
+    0x4a,
+    0x46,
+    0x49,
+    0x46,
+    0x00,
+    0x01,
+    0x01,
+    0x01,
+    (dpi >> 8) & 0xff,
+    dpi & 0xff,
+    (dpi >> 8) & 0xff,
+    dpi & 0xff,
+    0x00,
+    0x00,
+  ]);
+  const out = new Uint8Array(bytes.length + jfif.length);
+  out.set(bytes.subarray(0, 2), 0);
+  out.set(jfif, 2);
+  out.set(bytes.subarray(2), 2 + jfif.length);
+  return out;
+}
+
+function setPngDpi(bytes: Uint8Array, dpi: number) {
+  if (bytes.length < 33 || bytes[0] !== 0x89 || bytes[1] !== 0x50) return bytes;
+  const ppm = Math.round(dpi / 0.0254);
+  const data = new Uint8Array(9);
+  writeUint32(data, 0, ppm);
+  writeUint32(data, 4, ppm);
+  data[8] = 1;
+  const type = new Uint8Array([0x70, 0x48, 0x59, 0x73]); // pHYs
+  const chunk = new Uint8Array(21);
+  writeUint32(chunk, 0, 9);
+  chunk.set(type, 4);
+  chunk.set(data, 8);
+  const crcInput = new Uint8Array(13);
+  crcInput.set(type, 0);
+  crcInput.set(data, 4);
+  writeUint32(chunk, 17, crc32(crcInput));
+  const ihdrEnd = 33;
+  const out = new Uint8Array(bytes.length + chunk.length);
+  out.set(bytes.subarray(0, ihdrEnd), 0);
+  out.set(chunk, ihdrEnd);
+  out.set(bytes.subarray(ihdrEnd), ihdrEnd + chunk.length);
+  return out;
+}
+
+function writeUint32(target: Uint8Array, offset: number, value: number) {
+  target[offset] = (value >>> 24) & 0xff;
+  target[offset + 1] = (value >>> 16) & 0xff;
+  target[offset + 2] = (value >>> 8) & 0xff;
+  target[offset + 3] = value & 0xff;
+}
+
+function crc32(bytes: Uint8Array) {
+  let c = 0xffffffff;
+  for (let i = 0; i < bytes.length; i++) {
+    c ^= bytes[i]!;
+    for (let k = 0; k < 8; k++) c = (c >>> 1) ^ (0xedb88320 & -(c & 1));
+  }
+  return (c ^ 0xffffffff) >>> 0;
 }

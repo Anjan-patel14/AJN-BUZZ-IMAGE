@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { ArrowRight, Check, ExternalLink, FileImage, FileText, Image as ImageIcon, Maximize2, Minimize2, PenLine, ScanFace, ShieldCheck, Sparkles, Wand2 } from 'lucide-react';
+import { ArrowRight, Check, ExternalLink, FileImage, FileText, Maximize2, Minimize2, PenLine, ScanFace, ShieldCheck, Sparkles, Wand2 } from 'lucide-react';
 import { buildPageMetadata, SITE_URL } from '@/lib/seo';
 import { Page } from '@/components/Shell';
 import { AdSlot } from '@/components/AdSlot';
@@ -21,7 +21,7 @@ const categoryCards = [
     title: 'Resize & Compress',
     icon: Maximize2,
     copy: 'Resize images, reduce file size, compress to a target KB or MB limit, and enlarge images.',
-    countLabel: '4 tools',
+    countLabel: '5 tools',
     links: [
       { id: 'resize', name: 'Resize Image' },
       { id: 'compress', name: 'Compress Image' },
@@ -34,7 +34,7 @@ const categoryCards = [
     title: 'Photo Size & DPI',
     icon: ScanFace,
     copy: 'Prepare passport, ID, and application photos using pixels, physical dimensions, and DPI settings.',
-    countLabel: '6 tools',
+    countLabel: '10 tools',
     links: [
       { id: 'photo-size-converter', name: 'Photo Size Converter' },
       { id: 'passport-photo-maker', name: 'Passport Photo Maker' },
@@ -59,13 +59,13 @@ const categoryCards = [
     key: 'Edit',
     title: 'Crop & Edit',
     icon: Wand2,
-    copy: 'Crop, adjust, rotate, add watermarks, manage simple backgrounds, and clean image metadata.',
-    countLabel: '8 tools',
+    copy: 'Crop, adjust, rotate, add text overlays, manage plain backgrounds, and inspect image metadata.',
+    countLabel: '6 tools',
     links: [
       { id: 'crop', name: 'Crop Image' },
       { id: 'aspect-ratio-crop', name: 'Aspect Ratio Crop' },
       { id: 'photo-editor', name: 'Photo Editor' },
-      { id: 'watermark', name: 'Watermark Image' },
+      { id: 'text-on-image', name: 'Text on Image' },
     ],
   },
   {
@@ -73,21 +73,13 @@ const categoryCards = [
     title: 'Convert Images',
     icon: FileImage,
     copy: 'Convert supported image formats to JPG, PNG, and WebP where supported.',
-    countLabel: '6 tools',
+    countLabel: '3 tools',
     links: [
       { id: 'convert', name: 'Convert Image' },
       { id: 'convert-to-jpg', name: 'Image to JPG' },
       { id: 'jpg-to-png', name: 'JPG to PNG / WebP' },
     ],
   },
-];
-
-const popularTaskShortcuts = [
-  { id: 'resize', name: 'Resize Image' },
-  { id: 'compress', name: 'Compress Image' },
-  { id: 'passport-photo-maker', name: 'Passport Photo' },
-  { id: 'signature-maker', name: 'Signature Maker' },
-  { id: 'crop', name: 'Crop Image' },
 ];
 
 const popularSearches = [
@@ -102,6 +94,14 @@ const popularSearches = [
 ];
 
 const popular = ['resize','compress','compress-to-kb','passport-photo-maker','signature-maker','crop','photo-size-converter','text-on-image'];
+
+const QUICK_TOOL_ITEMS: Array<{ name: string; Icon: typeof Maximize2 }> = [
+  { name: 'Resize', Icon: Maximize2 },
+  { name: 'Compress', Icon: Minimize2 },
+  { name: 'Crop', Icon: Wand2 },
+  { name: 'Signature', Icon: PenLine },
+  { name: 'Convert', Icon: FileImage },
+];
 
 const homeGraph = {
   '@context': 'https://schema.org',
@@ -125,38 +125,15 @@ export default function Home() {
         />
 
         {/* MOBILE-FIRST IMMEDIATE TOOLS CATALOG & SEARCH */}
-        <section className="section tools-home-section" style={{ paddingTop: '28px' }}>
+        <section className="section tools-home-section">
           <div className="container">
-            <div className="home-mobile-intro" style={{ marginBottom: '22px', textAlign: 'center' }}>
-              <div className="eyebrow"><Sparkles size={13} /> AJN BUZZ IMAGE · 30 ONLINE TOOLS</div>
-              <h1 style={{ fontSize: 'clamp(28px, 5.2vw, 46px)', margin: '8px 0 10px', letterSpacing: '-0.045em' }}>
-                Resize, compress &amp; edit images instantly.
-              </h1>
-              <p className="lead" style={{ fontSize: '14px', maxWidth: '680px', margin: '0 auto', lineHeight: '1.6' }}>
-                Browser-local image tools for photos, signatures, applications, and everyday files. No upload or sign-in required.
+            <div className="home-mobile-intro">
+              <h1>Resize, compress &amp; edit images instantly.</h1>
+              <p className="lead">
+                30 browser-local tools for photos, signatures, passports &amp; everyday files — no upload required.
               </p>
             </div>
-            <div className="sectionhead" style={{ marginBottom: '16px' }}>
-              <div>
-                <div className="eyebrow">IMAGE TOOLS</div>
-                <h2>Every tool, clearly listed</h2>
-                <p>Search by exact task, format, or common phrase.</p>
-              </div>
-            </div>
             <ToolCatalog />
-          </div>
-        </section>
-
-        {/* POPULAR TOOLS SECTION */}
-        <section className="section popular-section" style={{ padding: '20px 0' }}>
-          <div className="container">
-            <div className="sectionhead">
-              <div>
-                <div className="eyebrow">START HERE</div>
-                <h2>Popular image tools</h2>
-                <p>Direct links to common image tasks.</p>
-              </div>
-            </div>
           </div>
         </section>
 
@@ -165,7 +142,7 @@ export default function Home() {
           <div className="container home-hero-grid">
             <div className="home-hero-copy">
               <div className="eyebrow">
-                <Sparkles size={13} /> SECURE BROWSER PROCESSING
+                <Sparkles size={13} /> SECURE BROWSER PROCESSING · Every tool, clearly listed
               </div>
               <h2>
                 Why choose <span>AJN BUZZ IMAGE?</span>
@@ -215,21 +192,12 @@ export default function Home() {
                   </div>
                   <div className="visual-side">
                     <div className="visual-side-title">Quick tools</div>
-                    {[
-                      ['Resize', Maximize2],
-                      ['Compress', Minimize2],
-                      ['Crop', Wand2],
-                      ['Signature', PenLine],
-                      ['Convert', FileImage],
-                    ].map(([name, Icon]) => {
-                      const I = Icon as any;
-                      return (
-                        <div className="visual-side-row" key={String(name)}>
-                          <I size={15} />
-                          <span>{String(name)}</span>
-                        </div>
-                      );
-                    })}
+                    {QUICK_TOOL_ITEMS.map(({ name, Icon }) => (
+                      <div className="visual-side-row" key={name}>
+                        <Icon size={15} />
+                        <span>{name}</span>
+                      </div>
+                    ))}
                   </div>
                 </div>
                 <div className="visual-bottom">

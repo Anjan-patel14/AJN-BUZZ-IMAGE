@@ -1,0 +1,560 @@
+{
+  "serverUrl": "http://127.0.0.1:3000",
+  "timestamp": "2026-10-31T07:57:34.468Z",
+  "viewportChecks": [
+    {
+      "viewport": "320px",
+      "page": "/passport-photo-maker",
+      "scrollWidth": 320,
+      "clientWidth": 320,
+      "hasOverflow": false,
+      "dropzoneTop": 183,
+      "dropzoneImmediatelyVisible": true,
+      "mobileStickyBarVisible": true
+    },
+    {
+      "viewport": "320px",
+      "page": "/compress-to-kb",
+      "scrollWidth": 320,
+      "clientWidth": 320,
+      "hasOverflow": false,
+      "dropzoneTop": 183,
+      "dropzoneImmediatelyVisible": true,
+      "mobileStickyBarVisible": true
+    },
+    {
+      "viewport": "320px",
+      "page": "/signature-maker",
+      "scrollWidth": 320,
+      "clientWidth": 320,
+      "hasOverflow": false,
+      "dropzoneTop": 613,
+      "dropzoneImmediatelyVisible": false,
+      "mobileStickyBarVisible": true
+    },
+    {
+      "viewport": "320px",
+      "page": "/",
+      "scrollWidth": 320,
+      "clientWidth": 320,
+      "hasOverflow": false,
+      "searchVisibleInViewport": true,
+      "firstRowVisibleInViewport": true,
+      "cookieBannerPresent": false
+    },
+    {
+      "viewport": "375px",
+      "page": "/passport-photo-maker",
+      "scrollWidth": 375,
+      "clientWidth": 375,
+      "hasOverflow": false,
+      "dropzoneTop": 169,
+      "dropzoneImmediatelyVisible": true,
+      "mobileStickyBarVisible": true
+    },
+    {
+      "viewport": "375px",
+      "page": "/compress-to-kb",
+      "scrollWidth": 375,
+      "clientWidth": 375,
+      "hasOverflow": false,
+      "dropzoneTop": 169,
+      "dropzoneImmediatelyVisible": true,
+      "mobileStickyBarVisible": true
+    },
+    {
+      "viewport": "375px",
+      "page": "/signature-maker",
+      "scrollWidth": 375,
+      "clientWidth": 375,
+      "hasOverflow": false,
+      "dropzoneTop": 598,
+      "dropzoneImmediatelyVisible": false,
+      "mobileStickyBarVisible": true
+    },
+    {
+      "viewport": "375px",
+      "page": "/",
+      "scrollWidth": 375,
+      "clientWidth": 375,
+      "hasOverflow": false,
+      "searchVisibleInViewport": true,
+      "firstRowVisibleInViewport": true,
+      "cookieBannerPresent": false
+    },
+    {
+      "viewport": "390px",
+      "page": "/passport-photo-maker",
+      "scrollWidth": 390,
+      "clientWidth": 390,
+      "hasOverflow": false,
+      "dropzoneTop": 170,
+      "dropzoneImmediatelyVisible": true,
+      "mobileStickyBarVisible": true
+    },
+    {
+      "viewport": "390px",
+      "page": "/compress-to-kb",
+      "scrollWidth": 390,
+      "clientWidth": 390,
+      "hasOverflow": false,
+      "dropzoneTop": 170,
+      "dropzoneImmediatelyVisible": true,
+      "mobileStickyBarVisible": true
+    },
+    {
+      "viewport": "390px",
+      "page": "/signature-maker",
+      "scrollWidth": 390,
+      "clientWidth": 390,
+      "hasOverflow": false,
+      "dropzoneTop": 599,
+      "dropzoneImmediatelyVisible": true,
+      "mobileStickyBarVisible": true
+    },
+    {
+      "viewport": "390px",
+      "page": "/",
+      "scrollWidth": 390,
+      "clientWidth": 390,
+      "hasOverflow": false,
+      "searchVisibleInViewport": true,
+      "firstRowVisibleInViewport": true,
+      "cookieBannerPresent": false
+    },
+    {
+      "viewport": "430px",
+      "page": "/passport-photo-maker",
+      "scrollWidth": 430,
+      "clientWidth": 430,
+      "hasOverflow": false,
+      "dropzoneTop": 172,
+      "dropzoneImmediatelyVisible": true,
+      "mobileStickyBarVisible": true
+    },
+    {
+      "viewport": "430px",
+      "page": "/compress-to-kb",
+      "scrollWidth": 430,
+      "clientWidth": 430,
+      "hasOverflow": false,
+      "dropzoneTop": 172,
+      "dropzoneImmediatelyVisible": true,
+      "mobileStickyBarVisible": true
+    },
+    {
+      "viewport": "430px",
+      "page": "/signature-maker",
+      "scrollWidth": 430,
+      "clientWidth": 430,
+      "hasOverflow": false,
+      "dropzoneTop": 522,
+      "dropzoneImmediatelyVisible": true,
+      "mobileStickyBarVisible": true
+    },
+    {
+      "viewport": "430px",
+      "page": "/",
+      "scrollWidth": 430,
+      "clientWidth": 430,
+      "hasOverflow": false,
+      "searchVisibleInViewport": true,
+      "firstRowVisibleInViewport": true,
+      "cookieBannerPresent": false
+    },
+    {
+      "viewport": "landscape-667x375",
+      "page": "/passport-photo-maker",
+      "scrollWidth": 667,
+      "clientWidth": 667,
+      "hasOverflow": false,
+      "dropzoneTop": 175,
+      "dropzoneImmediatelyVisible": true,
+      "mobileStickyBarVisible": true
+    },
+    {
+      "viewport": "landscape-667x375",
+      "page": "/compress-to-kb",
+      "scrollWidth": 667,
+      "clientWidth": 667,
+      "hasOverflow": false,
+      "dropzoneTop": 175,
+      "dropzoneImmediatelyVisible": true,
+      "mobileStickyBarVisible": true
+    },
+    {
+      "viewport": "landscape-667x375",
+      "page": "/signature-maker",
+      "scrollWidth": 667,
+      "clientWidth": 667,
+      "hasOverflow": false,
+      "dropzoneTop": 554,
+      "dropzoneImmediatelyVisible": false,
+      "mobileStickyBarVisible": true
+    },
+    {
+      "viewport": "landscape-667x375",
+      "page": "/",
+      "scrollWidth": 667,
+      "clientWidth": 667,
+      "hasOverflow": false,
+      "searchVisibleInViewport": true,
+      "firstRowVisibleInViewport": true,
+      "cookieBannerPresent": false
+    },
+    {
+      "viewport": "768px",
+      "page": "/passport-photo-maker",
+      "scrollWidth": 768,
+      "clientWidth": 768,
+      "hasOverflow": false,
+      "dropzoneTop": 175,
+      "dropzoneImmediatelyVisible": true,
+      "mobileStickyBarVisible": true
+    },
+    {
+      "viewport": "768px",
+      "page": "/compress-to-kb",
+      "scrollWidth": 768,
+      "clientWidth": 768,
+      "hasOverflow": false,
+      "dropzoneTop": 175,
+      "dropzoneImmediatelyVisible": true,
+      "mobileStickyBarVisible": true
+    },
+    {
+      "viewport": "768px",
+      "page": "/signature-maker",
+      "scrollWidth": 768,
+      "clientWidth": 768,
+      "hasOverflow": false,
+      "dropzoneTop": 554,
+      "dropzoneImmediatelyVisible": true,
+      "mobileStickyBarVisible": true
+    },
+    {
+      "viewport": "768px",
+      "page": "/",
+      "scrollWidth": 768,
+      "clientWidth": 768,
+      "hasOverflow": false,
+      "searchVisibleInViewport": true,
+      "firstRowVisibleInViewport": true,
+      "cookieBannerPresent": false
+    },
+    {
+      "viewport": "1024px",
+      "page": "/passport-photo-maker",
+      "scrollWidth": 1024,
+      "clientWidth": 1024,
+      "hasOverflow": false,
+      "dropzoneTop": 288,
+      "dropzoneImmediatelyVisible": true,
+      "mobileStickyBarVisible": false
+    },
+    {
+      "viewport": "1024px",
+      "page": "/compress-to-kb",
+      "scrollWidth": 1024,
+      "clientWidth": 1024,
+      "hasOverflow": false,
+      "dropzoneTop": 288,
+      "dropzoneImmediatelyVisible": true,
+      "mobileStickyBarVisible": false
+    },
+    {
+      "viewport": "1024px",
+      "page": "/signature-maker",
+      "scrollWidth": 1024,
+      "clientWidth": 1024,
+      "hasOverflow": false,
+      "dropzoneTop": 668,
+      "dropzoneImmediatelyVisible": false,
+      "mobileStickyBarVisible": false
+    },
+    {
+      "viewport": "1024px",
+      "page": "/",
+      "scrollWidth": 1024,
+      "clientWidth": 1024,
+      "hasOverflow": false,
+      "searchVisibleInViewport": true,
+      "firstRowVisibleInViewport": true,
+      "cookieBannerPresent": false
+    },
+    {
+      "viewport": "1280px",
+      "page": "/passport-photo-maker",
+      "scrollWidth": 1280,
+      "clientWidth": 1280,
+      "hasOverflow": false,
+      "dropzoneTop": 291,
+      "dropzoneImmediatelyVisible": true,
+      "mobileStickyBarVisible": false
+    },
+    {
+      "viewport": "1280px",
+      "page": "/compress-to-kb",
+      "scrollWidth": 1280,
+      "clientWidth": 1280,
+      "hasOverflow": false,
+      "dropzoneTop": 291,
+      "dropzoneImmediatelyVisible": true,
+      "mobileStickyBarVisible": false
+    },
+    {
+      "viewport": "1280px",
+      "page": "/signature-maker",
+      "scrollWidth": 1280,
+      "clientWidth": 1280,
+      "hasOverflow": false,
+      "dropzoneTop": 671,
+      "dropzoneImmediatelyVisible": true,
+      "mobileStickyBarVisible": false
+    },
+    {
+      "viewport": "1280px",
+      "page": "/",
+      "scrollWidth": 1280,
+      "clientWidth": 1280,
+      "hasOverflow": false,
+      "searchVisibleInViewport": true,
+      "firstRowVisibleInViewport": true,
+      "cookieBannerPresent": false
+    },
+    {
+      "viewport": "1440px",
+      "page": "/passport-photo-maker",
+      "scrollWidth": 1440,
+      "clientWidth": 1440,
+      "hasOverflow": false,
+      "dropzoneTop": 291,
+      "dropzoneImmediatelyVisible": true,
+      "mobileStickyBarVisible": false
+    },
+    {
+      "viewport": "1440px",
+      "page": "/compress-to-kb",
+      "scrollWidth": 1440,
+      "clientWidth": 1440,
+      "hasOverflow": false,
+      "dropzoneTop": 291,
+      "dropzoneImmediatelyVisible": true,
+      "mobileStickyBarVisible": false
+    },
+    {
+      "viewport": "1440px",
+      "page": "/signature-maker",
+      "scrollWidth": 1440,
+      "clientWidth": 1440,
+      "hasOverflow": false,
+      "dropzoneTop": 671,
+      "dropzoneImmediatelyVisible": true,
+      "mobileStickyBarVisible": false
+    },
+    {
+      "viewport": "1440px",
+      "page": "/",
+      "scrollWidth": 1440,
+      "clientWidth": 1440,
+      "hasOverflow": false,
+      "searchVisibleInViewport": true,
+      "firstRowVisibleInViewport": true,
+      "cookieBannerPresent": false
+    },
+    {
+      "viewport": "1920px",
+      "page": "/passport-photo-maker",
+      "scrollWidth": 1920,
+      "clientWidth": 1920,
+      "hasOverflow": false,
+      "dropzoneTop": 291,
+      "dropzoneImmediatelyVisible": true,
+      "mobileStickyBarVisible": false
+    },
+    {
+      "viewport": "1920px",
+      "page": "/compress-to-kb",
+      "scrollWidth": 1920,
+      "clientWidth": 1920,
+      "hasOverflow": false,
+      "dropzoneTop": 291,
+      "dropzoneImmediatelyVisible": true,
+      "mobileStickyBarVisible": false
+    },
+    {
+      "viewport": "1920px",
+      "page": "/signature-maker",
+      "scrollWidth": 1920,
+      "clientWidth": 1920,
+      "hasOverflow": false,
+      "dropzoneTop": 671,
+      "dropzoneImmediatelyVisible": true,
+      "mobileStickyBarVisible": false
+    },
+    {
+      "viewport": "1920px",
+      "page": "/",
+      "scrollWidth": 1920,
+      "clientWidth": 1920,
+      "hasOverflow": false,
+      "searchVisibleInViewport": true,
+      "firstRowVisibleInViewport": true,
+      "cookieBannerPresent": false
+    }
+  ],
+  "accessibilityChecks": [
+    {
+      "route": "/",
+      "issues": [],
+      "dropzoneKeyboardReady": true,
+      "ariaLiveCount": 0,
+      "axeViolations": [],
+      "seriousOrCriticalAxeCount": 0
+    },
+    {
+      "route": "/passport-photo-maker",
+      "issues": [],
+      "dropzoneKeyboardReady": true,
+      "ariaLiveCount": 1,
+      "axeViolations": [],
+      "seriousOrCriticalAxeCount": 0
+    },
+    {
+      "route": "/compress-to-kb",
+      "issues": [],
+      "dropzoneKeyboardReady": true,
+      "ariaLiveCount": 1,
+      "axeViolations": [],
+      "seriousOrCriticalAxeCount": 0
+    },
+    {
+      "route": "/signature-maker",
+      "issues": [],
+      "dropzoneKeyboardReady": true,
+      "ariaLiveCount": 1,
+      "axeViolations": [],
+      "seriousOrCriticalAxeCount": 0
+    }
+  ],
+  "performanceChecks": [
+    {
+      "profile": "mobile",
+      "route": "/",
+      "loadWallMs": 1350,
+      "ttfbMs": 8,
+      "domContentLoadedMs": 129,
+      "fcpMs": 316,
+      "cls": 0,
+      "jszipLoadedOnInit": false,
+      "workerLoadedOnInit": false
+    },
+    {
+      "profile": "mobile",
+      "route": "/passport-photo-maker",
+      "loadWallMs": 1228,
+      "ttfbMs": 6,
+      "domContentLoadedMs": 310,
+      "fcpMs": 324,
+      "cls": 0,
+      "jszipLoadedOnInit": false,
+      "workerLoadedOnInit": false
+    },
+    {
+      "profile": "mobile",
+      "route": "/compress-to-kb",
+      "loadWallMs": 1287,
+      "ttfbMs": 5,
+      "domContentLoadedMs": 326,
+      "fcpMs": 268,
+      "cls": 0,
+      "jszipLoadedOnInit": false,
+      "workerLoadedOnInit": false
+    },
+    {
+      "profile": "mobile",
+      "route": "/signature-maker",
+      "loadWallMs": 1253,
+      "ttfbMs": 5,
+      "domContentLoadedMs": 320,
+      "fcpMs": 268,
+      "cls": 0,
+      "jszipLoadedOnInit": false,
+      "workerLoadedOnInit": false
+    },
+    {
+      "profile": "desktop",
+      "route": "/",
+      "loadWallMs": 1528,
+      "ttfbMs": 8,
+      "domContentLoadedMs": 123,
+      "fcpMs": 476,
+      "cls": 0,
+      "jszipLoadedOnInit": false,
+      "workerLoadedOnInit": false
+    },
+    {
+      "profile": "desktop",
+      "route": "/passport-photo-maker",
+      "loadWallMs": 1331,
+      "ttfbMs": 6,
+      "domContentLoadedMs": 356,
+      "fcpMs": 352,
+      "cls": 0,
+      "jszipLoadedOnInit": false,
+      "workerLoadedOnInit": false
+    },
+    {
+      "profile": "desktop",
+      "route": "/compress-to-kb",
+      "loadWallMs": 1390,
+      "ttfbMs": 8,
+      "domContentLoadedMs": 346,
+      "fcpMs": 336,
+      "cls": 0,
+      "jszipLoadedOnInit": false,
+      "workerLoadedOnInit": false
+    },
+    {
+      "profile": "desktop",
+      "route": "/signature-maker",
+      "loadWallMs": 1398,
+      "ttfbMs": 5,
+      "domContentLoadedMs": 390,
+      "fcpMs": 420,
+      "cls": 0,
+      "jszipLoadedOnInit": false,
+      "workerLoadedOnInit": false
+    }
+  ],
+  "seoAndRoutingChecks": {
+    "watermarkRedirect": {
+      "status": 308,
+      "location": "/text-on-image"
+    },
+    "toolsSlugRedirect": {
+      "status": 308,
+      "location": "/passport-photo-maker"
+    },
+    "sitemapStatus": 200,
+    "sitemapUrlCount": 39,
+    "imageSitemapStatus": 200,
+    "imageSitemapImageCount": 30,
+    "robotsStatus": 200,
+    "robotsHasSitemap": true,
+    "adsTxtStatus": 200,
+    "adsTxtContent": "google.com, pub-4495802176396975, DIRECT, f08c47fec0942fa0",
+    "all30PagesOk": true,
+    "uniqueTitlesCount": 30,
+    "uniqueDescriptionsCount": 30,
+    "all30JsonLdOk": true,
+    "all30SvgsOk": true,
+    "toolSeoFailures": [],
+    "legalPages": {
+      "/about": 200,
+      "/contact": 200,
+      "/privacy": 200,
+      "/terms": 200
+    }
+  }
+}

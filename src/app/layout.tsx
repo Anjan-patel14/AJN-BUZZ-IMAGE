@@ -36,5 +36,22 @@ const structuredData = {
 };
 
 export default function Layout({ children }: { children: React.ReactNode }) {
-  return <html lang="en" data-theme="light" style={{ colorScheme: 'light' }} className={`${manrope.variable} ${inter.variable}`}><body className="ajn-light-only"><AmbientBackground /><script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredData) }} />{children}<AdSenseScriptLoader /><CookieConsent /></body></html>;
+  return (
+    <html lang="en" data-theme="light" style={{ colorScheme: 'light' }} className={`${manrope.variable} ${inter.variable}`}>
+      <head>
+        <script
+          async
+          src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-4495802176396975"
+          crossOrigin="anonymous"
+        />
+      </head>
+      <body className="ajn-light-only">
+        <AmbientBackground />
+        <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredData) }} />
+        {children}
+        <AdSenseScriptLoader />
+        <CookieConsent />
+      </body>
+    </html>
+  );
 }

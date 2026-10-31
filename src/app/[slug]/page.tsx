@@ -6,6 +6,7 @@ import { Page } from '@/components/Shell';
 import { AdSlot } from '@/components/AdSlot';
 import { ImageEditor } from '@/components/ImageEditor';
 import { IMAGE_TOOLS, TOOL_MAP, type ToolId } from '@/lib/image-tools';
+import { getToolDetailedGuide } from '@/lib/tool-seo-content';
 import { ToolIcon } from '@/components/ToolIcon';
 import { buildPageMetadata, SITE_URL } from '@/lib/seo';
 
@@ -32,8 +33,11 @@ export default async function ToolPage({ params }: { params: Promise<{ slug: str
   const tool = TOOL_MAP.get(resolvedParams.slug as ToolId);
   if (!tool) return notFound();
 
+  const guide = getToolDetailedGuide(tool);
+  const mergedFaqs = [...tool.faq, ...guide.extraFaqs];
   const related = IMAGE_TOOLS.filter(t => t.id !== tool.id && (t.category === tool.category || t.seoKeywords.some(k => tool.seoKeywords.includes(k)))).slice(0, 6);
-  const graph: any = {
+
+  const graph: Record<string, unknown> = {
     '@context': 'https://schema.org',
     '@graph': [
       {
@@ -61,19 +65,16 @@ export default async function ToolPage({ params }: { params: Promise<{ slug: str
         url: `${SITE_URL}/seo-tools/${tool.id}.svg`,
         caption: `${tool.name} — AJN BUZZ IMAGE`,
       },
+      {
+        '@type': 'FAQPage',
+        mainEntity: mergedFaqs.map(item => ({
+          '@type': 'Question',
+          name: item.question,
+          acceptedAnswer: { '@type': 'Answer', text: item.answer },
+        })),
+      },
     ],
   };
-
-  if (tool.faq.length) {
-    graph['@graph'].push({
-      '@type': 'FAQPage',
-      mainEntity: tool.faq.map(item => ({
-        '@type': 'Question',
-        name: item.question,
-        acceptedAnswer: { '@type': 'Answer', text: item.answer },
-      })),
-    });
-  }
 
   return (
     <Page>
@@ -87,6 +88,7 @@ export default async function ToolPage({ params }: { params: Promise<{ slug: str
             <span>/</span>
             <b>{tool.name}</b>
           </nav>
+
           <div className="tool-hero compact-tool-hero">
             <div className={`tool-icon tool-icon-${tool.category.toLowerCase().replaceAll(' ', '-')} large`}>
               <ToolIcon name={tool.icon} size={28} />
@@ -97,10 +99,84 @@ export default async function ToolPage({ params }: { params: Promise<{ slug: str
               <p className="tool-summary">{tool.summary}</p>
             </div>
           </div>
-          <div className="tool-image-seo">
+
+          <ImageEditor tool={tool} />
+
+          <AdSlot slot={`tool-${tool.id}`} />
+
+          <section className="tool-seo-card" aria-labelledby={`${tool.id}-details`}>
+            <div className="tool-seo-copy">
+              <div className="eyebrow">Step-by-step guide &amp; specifications</div>
+              <h2 id={`${tool.id}-details`}>{tool.seoTitle}</h2>
+              <p>{guide.purpose}</p>
+              <p className="small muted"><b>Supported formats:</b> {tool.formats} · <b>Processing:</b> 100% browser-local HTML5 Canvas &amp; Blob APIs</p>
+
+              <h3>How to use {tool.name}</h3>
+              <ol>
+                {guide.steps.map((step, index) => (
+                  <li key={index}>{step}</li>
+                ))}
+              </ol>
+
+              <h3>Practical use cases</h3>
+              <ul className="tool-guide-list">
+                {guide.useCases.map((uc, index) => (
+                  <li key={index}>{uc}</li>
+                ))}
+              </ul>
+
+              {guide.specs?.length ? (
+                <div className="tool-spec-table-wrap">
+                  <h3>Common size &amp; DPI reference specifications</h3>
+                  <table className="tool-spec-table">
+                    <thead>
+                      <tr>
+                        <th>Preset / Format</th>
+                        <th>Physical Size</th>
+                        <th>Pixels at 300 DPI</th>
+                        <th>Common Application</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {guide.specs.map(row => (
+                        <tr key={row.label}>
+                          <td><b>{row.label}</b></td>
+                          <td>{row.dimension}</td>
+                          <td>{row.pixels300Dpi}</td>
+                          <td>{row.typicalUse}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ) : null}
+
+              <h3>Common problems &amp; solutions</h3>
+              <div className="tool-troubleshooting">
+                {guide.troubleshooting.map(item => (
+                  <div className="troubleshooting-item" key={item.problem}>
+                    <b>Problem: {item.problem}</b>
+                    <p>Solution: {item.solution}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="tool-faq-mini">
+              <div className="eyebrow" style={{ marginBottom: '6px' }}>Frequently asked questions</div>
+              {mergedFaqs.map((item, idx) => (
+                <details key={item.question} open={idx === 0}>
+                  <summary>{item.question}</summary>
+                  <p>{item.answer}</p>
+                </details>
+              ))}
+            </div>
+          </section>
+
+          <div className="tool-image-seo" style={{ marginTop: '24px' }}>
             <div className="tool-image-seo-copy">
               <div className="eyebrow">{tool.name}</div>
-              <h2>{tool.seoTitle}</h2>
+              <h2>Overview · {tool.name}</h2>
               <p>{tool.description}</p>
               <div className="tool-points">
                 <span><Check size={14} /> Focused workflow</span>
@@ -109,35 +185,12 @@ export default async function ToolPage({ params }: { params: Promise<{ slug: str
               </div>
             </div>
             <div className="tool-image-preview">
-              <img src={`/seo-tools/${tool.id}.svg`} alt={`${tool.name} online tool preview`} width="1200" height="675" loading="eager" />
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={`/seo-tools/${tool.id}.svg`} alt={`${tool.name} online tool preview`} width="1200" height="675" loading="lazy" />
               <span><ImageIcon size={14} /> Tool preview</span>
             </div>
           </div>
-          <ImageEditor tool={tool} />
-          <AdSlot slot={`tool-${tool.id}`} />
-          <section className="tool-seo-card" aria-labelledby={`${tool.id}-details`}>
-            <div className="tool-seo-copy">
-              <div className="eyebrow">How to use</div>
-              <h2 id={`${tool.id}-details`}>{tool.seoTitle}</h2>
-              <p>{tool.description}</p>
-              <ol>
-                <li>Choose or upload your image.</li>
-                <li>Set the options required for this workflow.</li>
-                <li>Process the image and review the output.</li>
-                <li>Use the Download button to save the result.</li>
-              </ol>
-            </div>
-            {tool.faq.length ? (
-              <div className="tool-faq-mini">
-                {tool.faq.map(item => (
-                  <details key={item.question}>
-                    <summary>{item.question}</summary>
-                    <p>{item.answer}</p>
-                  </details>
-                ))}
-              </div>
-            ) : null}
-          </section>
+
           {related.length ? (
             <section className="related-tools">
               <div className="sectionhead">
